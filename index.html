@@ -167,8 +167,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user badge (sidebar footer, .sb-foot) exists on the WEBSITE only (Theme + Edit profile + Change password + Log out) and is hidden on phones; on a phone Edit profile = Profile page, Theme + Change password + Log out = Settings (#theme-card, #acct-card). On phones Change password lives in Settings; on the website it is in the badge dropdown (the Account card is hidden there). New fixed things must clear var(--mt-h) at the top and var(--nb-h) at the bottom, and modals must keep
    z-index above 40 (the bars).
 29. FUTURES ONLY + SYMBOL CATALOG. The app ranks FUTURES and nothing else (there is no market picker). SYM_CAT (script) lists every futures contract the app ranks, most popular first, and mirrors the SQL
-   table futures_contracts (supabase-setup.sql section 18): keep the two in step. points = price move, $ P&L = points x point_value x contracts. A symbol that is not in that table is not ranked. Home / Stats / Settings ->
-   Scoreboard Symbols list the symbols in the order of SYM_CAT, unless the person set their own order (saved on the account as user metadata symbol_order / symbol_hidden; Reset puts the popularity order back). The screenshot
+   table futures_contracts (supabase-setup.sql section 18): keep the two in step. points = price move, $ P&L = points x point_value x contracts. A symbol that is not in that table is not ranked. Home / Stats / the Scoreboard Symbols window (Home: top-right button on phones, "Symbols" button in the Home banner on the website) list the symbols in the order of SYM_CAT, unless the person set their own order (saved on the account as user metadata symbol_order / symbol_hidden; Reset puts the popularity order back). The screenshot
    reader (IM_FUT / normalizeSymbol / imInferSymbol) knows the 12 most common contracts; any other symbol is typed in the Import dialog or comes from a CSV.
    The trade window shows the same layout for every trade (tdDetailRows: symbol, side, contracts, duration, opened, closed, entry, exit). To add a contract: one row in SYM_CAT, one row in futures_contracts, and (if the screenshot reader should know it) one row in IM_FUT.
    TEST DATA GENERATOR: genTrade() builds futures trades only (GEN_SYMS, GEN_BASE, GEN_SCALE, GEN_TICK, GEN_MICRO, GEN_STAR hold the made-up prices). Every account gets 6 symbols x 5 days = 30 trades.
@@ -177,9 +176,11 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    only the time they confirmed 18+ (table age_confirmations, unreadable from the browser, no edit path, in Download my data, deleted with the account). The browser only remembers
    that this device was refused (localStorage nexus_signup_block_until: 24h for 13-17, a year for under 13) so the date cannot just be retyped; that is a speed bump, the database is the rule.
    Existing accounts are not asked. Keep the Privacy Policy in step: it should say the birth date is checked once and not kept.
-31. SETTINGS PAGE LAYOUT (page-settings): cards are grouped under small headings, in this order: Preferences (Theme [phone only], Time Zone & Clock, Scoreboard Symbols), Notifications, Privacy & Safety (Hide from search,
-   Blocked Users), Account (email read-only, Change password [phone only], Download my data, Log out of all devices, Log out [phone only]), Legal & Support (Terms, Privacy, Contact support, Report a problem, version),
-   Admin tools (#adm-group: Test Data Generator + Welcome Tour preview, shown ONLY to admins by refreshGenerator()), and Delete Account last in the Danger zone. A new card goes under the heading it belongs to.
+31. SETTINGS PAGE LAYOUT (page-settings): cards are grouped under small headings, in this order: Preferences (Theme [phone only], Time Zone & Clock), Notifications, Privacy & Safety (Hide from search,
+   Blocked Users), Legal & Support (Terms, Privacy, Contact support, Report a problem, version), Admin tools (#adm-group: Test Data Generator + Welcome Tour preview, shown ONLY to admins by refreshGenerator()),
+   Danger zone (Delete Account), and the Account card at the VERY BOTTOM so Log out [phone only] is the last thing on the page (email read-only, Change password [phone only], Download my data, Log out of all devices, Log out).
+   Keep Account last. A new card goes under the heading it belongs to. SCOREBOARD SYMBOLS are NOT in Settings any more: they are a pop up window (#symOverlay, ids #sp-list / #sp-reset kept) opened from Home by #mt-syms (phone top bar,
+   top right, shown on Home only, see mobileBar) and #hm-syms (website, in the Home banner; hidden on phones). symSave() sets SYM_DIRTY and the window's close hook redraws Home + Stats once.
    NOTIFICATION SWITCHES (SQL section 42): five switches (Likes, New followers, Trades by people I follow, My scoreboard places, Top 3 by people I follow), all ON by default, saved on the account (table notification_prefs).
    SQL notification_kind_on() is the one rule; my_notifications() (list) and notifications_unread() (bell) both call it. The browser only draws NT_PREFS and calls Backend.notificationPrefs / setNotificationPref.
    LOG OUT OF ALL DEVICES = Backend.signOutEverywhere() (Supabase signOut scope 'global'; in Nhost it is the sign-out-all call). SUPPORT: set SUPPORT_EMAIL and APP_VERSION (constants beside SUPABASE_URL); Contact support /
@@ -1891,6 +1892,15 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .sp-danger{ border-color:color-mix(in srgb, var(--loss) 32%, var(--line)); background:color-mix(in srgb, var(--loss) 6%, var(--surface)); }
   .sp-danger .sp-head h4{ color:var(--loss); }
   .sp-delbtn{ width:auto; padding:0 20px; flex:none; }
+  /* Scoreboard Symbols window (opened from Home: top-right button on the phone, "Symbols" button in the banner on the website) */
+  .hm-symbtn{ position:relative; z-index:1; flex:none; display:inline-flex; align-items:center; gap:8px; height:46px; padding:0 16px; border-radius:14px; border:1px solid var(--line-strong); background:var(--surface-2); color:var(--text); cursor:pointer; font:700 14px var(--font-sans); }
+  .hm-symbtn svg{ width:18px; height:18px; color:var(--gold-muted-ink); }
+  .hm-symbtn:hover{ border-color:color-mix(in srgb, var(--pc) 50%, var(--line-strong)); }
+  .hm-symbtn:focus-visible{ outline:2px solid var(--pc); outline-offset:2px; }
+  #symOverlay .sp-note{ margin:0; }
+  #symOverlay .sp-list{ margin-top:12px; }
+  #symOverlay .pm-actions #sp-reset{ margin-right:auto; }
+  @media (max-width:700px){ .hm-symbtn{ display:none; } }
   /* Settings: scoreboard symbols (order + show/hide) */
   /* Settings: group headings, email row, version line, notification rows */
   .sp-group{ margin:34px 2px 0; display:flex; align-items:center; gap:10px; font:800 12px var(--font-sans); letter-spacing:.09em; text-transform:uppercase; color:var(--text-muted); }
@@ -2784,7 +2794,7 @@ html[data-theme="dark"] .tt-medal.rw, html[data-theme="dark"] .tt-rk.rw{ --m:var
     .mtop h1{ position:absolute; left:56px; right:56px; text-align:center; flex:1; min-width:0; margin:0; pointer-events:none; font:800 22px var(--font-sans); letter-spacing:-.02em; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .mt-ic{ flex:none; width:40px; height:40px; display:grid; place-items:center; border:0; border-radius:12px; background:none; color:var(--text); cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .mt-ic svg{ width:25px; height:25px; display:block; } .mt-ic:active{ background:color-mix(in srgb, var(--text) 8%, transparent); } .mt-ic[hidden]{ display:none; }
-    #mt-back{ margin-left:-10px; } #mt-gear{ margin-left:auto; margin-right:-8px; }   /* the title is centered on its own, so auto margin pushes the gear to the right corner */
+    #mt-back{ margin-left:-10px; } #mt-gear, #mt-syms{ margin-left:auto; margin-right:-8px; }   /* the title is centered on its own, so auto margin pushes the gear to the right corner */
     body:has(#pf-back.show) #mt-gear{ display:none; }                       /* looking at someone else's profile: no Settings gear */
     .app{ display:block; padding:calc(var(--mt-h) + env(safe-area-inset-top, 0px) + 14px) 14px calc(var(--nb-h) + env(safe-area-inset-bottom, 0px) + 24px); }
     /* the page banners are for the website; the title bar says where you are. Home keeps its "my day" tiles (they are content, not a title). */
@@ -3072,6 +3082,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   <button type="button" class="mt-ic" id="mt-back" aria-label="Back to profile" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
   <h1 id="mt-title">Home</h1>
   <button type="button" class="mt-ic" id="mt-gear" aria-label="Settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  <button type="button" class="mt-ic" id="mt-syms" aria-label="Scoreboard symbols" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
 </header>
 <div class="app">
   <aside class="sidebar" aria-label="Main navigation">
@@ -3118,6 +3129,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       <div class="page-head hm-banner" id="hm-banner">
         <span class="ph-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></span>
         <div class="hm-bn-main"><h2 id="hm-bn-title">Home</h2><p id="hm-bn-sub" aria-live="polite">Loading your day…</p></div>
+        <button type="button" class="hm-symbtn" id="hm-syms" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Symbols</span></button>
         <div class="hm-bn-stats" id="hm-bn-stats"></div>
       </div>
       <div class="hm-bar">
@@ -3217,10 +3229,6 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         <div class="tz-sw"><span id="tz-24-lbl">24-hour clock <small>(18:00 instead of 6:00 PM)</small></span><button type="button" class="sp-sw" id="tz-24" role="switch" aria-checked="false" aria-labelledby="tz-24-lbl"></button></div>
         <p class="tz-now" id="tz-now" aria-live="polite"></p>
       </div>
-      <div class="sp-card" id="sp-card">
-        <div class="sp-head"><div><h4>Scoreboard Symbols</h4><p>Every symbol has its own scoreboard, most popular first. Put your favorites first and hide the ones you don't follow. Hiding only changes what you see on Home.</p></div><button type="button" class="stamp-btn secondary" id="sp-reset">Reset</button></div>
-        <div class="sp-list" id="sp-list"></div>
-      </div>
       <h3 class="sp-group">Notifications</h3>
       <div class="sp-card" id="nt-card">
         <div class="sp-head"><div><h4>Notifications</h4><p>Choose what shows up on the Notifications page and in the bell count. Switching one off hides it, and switching it back on brings it back.</p></div></div>
@@ -3233,18 +3241,6 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       </div>
       <div class="sp-card" id="blk-card">
         <div class="sp-head"><div><h4>Blocked Users</h4><p>People you block can&rsquo;t see your profile or trades, can&rsquo;t follow or like you, and you won&rsquo;t see them anywhere in the app.</p></div><button type="button" class="stamp-btn secondary" id="blk-open">Manage</button></div>
-      </div>
-      <h3 class="sp-group">Account</h3>
-      <div class="sp-card" id="acct-card">
-        <div class="sp-head"><div><h4>Account</h4></div></div>
-        <div class="sp-email"><span>Email</span><b id="acct-email">&nbsp;</b></div>
-        <p class="sp-note">This is the email you signed up with. It can&rsquo;t be changed.</p>
-        <div class="acct-btns">
-          <button type="button" class="stamp-btn secondary acct-phone" onclick="window.__openChangePasswordModal()">Change password</button>
-          <button type="button" class="stamp-btn secondary" id="acct-export">Download my data</button>
-          <button type="button" class="stamp-btn secondary" id="acct-logout-all">Log out of all devices</button>
-          <button type="button" class="pm-danger-btn acct-out acct-phone" onclick="window.__confirmLogout()">Log out</button>
-        </div>
       </div>
       <h3 class="sp-group">Legal &amp; Support</h3>
       <div class="sp-card" id="legal-card">
@@ -3299,6 +3295,18 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       <h3 class="sp-group">Danger zone</h3>
       <div class="sp-card sp-danger" id="sp-danger">
         <div class="sp-head"><div><h4>Delete Account</h4><p>Deleting your account permanently removes your profile and all of your data. This action cannot be undone.</p></div><button type="button" class="pm-danger-btn sp-delbtn" onclick="window.__confirmDeleteProfile()">Delete Account</button></div>
+      </div>
+      <h3 class="sp-group">Account</h3>
+      <div class="sp-card" id="acct-card">
+        <div class="sp-head"><div><h4>Account</h4></div></div>
+        <div class="sp-email"><span>Email</span><b id="acct-email">&nbsp;</b></div>
+        <p class="sp-note">This is the email you signed up with. It can&rsquo;t be changed.</p>
+        <div class="acct-btns">
+          <button type="button" class="stamp-btn secondary acct-phone" onclick="window.__openChangePasswordModal()">Change password</button>
+          <button type="button" class="stamp-btn secondary" id="acct-export">Download my data</button>
+          <button type="button" class="stamp-btn secondary" id="acct-logout-all">Log out of all devices</button>
+          <button type="button" class="pm-danger-btn acct-out acct-phone" onclick="window.__confirmLogout()">Log out</button>
+        </div>
       </div>
     </section>
   </main>
@@ -3510,6 +3518,19 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   </div>
 </div>
 
+<div class="modal-overlay" id="symOverlay">
+  <div class="modal-card pm-card pm-gold ht-card" role="dialog" aria-modal="true" aria-labelledby="symTitle">
+    <div class="pm-head">
+      <div class="pm-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
+      <div><h3 id="symTitle">Scoreboard Symbols</h3><p><span class="pm-chip">Order &amp; show / hide</span></p></div>
+    </div>
+    <div class="pm-body ht-body">
+      <p class="sp-note">Every symbol has its own scoreboard, most popular first. Put your favorites first and hide the ones you don't follow. The order is used on Home and Stats. Hiding only changes what you see on Home.</p>
+      <div class="sp-list" id="sp-list"></div>
+    </div>
+    <div class="pm-actions"><button type="button" class="stamp-btn secondary" id="sp-reset">Reset</button><button type="button" class="stamp-btn" id="symClose">Done</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="howtoOverlay">
   <div class="modal-card pm-card pm-gold ht-card" role="dialog" aria-modal="true" aria-labelledby="htTitle">
     <div class="pm-head">
@@ -4764,7 +4785,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   let pmPhoto = null, pmPhotoRemoved = false;
   const CR = { img:null, w:0, h:0, V:300, dpr:1, base:1, z:1, x:0, y:0, ptrs:new Map(), pd:0, busy:false };
   function pmDiscardPhoto(){ if(pmPhoto){ try{ URL.revokeObjectURL(pmPhoto.url); }catch(e){} pmPhoto = null; } }
-  const overlays = ['profileOverlay', 'passwordOverlay', 'importOverlay', 'cropOverlay', 'howtoOverlay'];
+  const overlays = ['profileOverlay', 'passwordOverlay', 'importOverlay', 'cropOverlay', 'howtoOverlay', 'symOverlay'];
   function closeOverlays(){ if($('#profileOverlay').classList.contains('active')) pmDiscardPhoto(); overlays.forEach(id => $('#' + id).classList.remove('active')); const tt = $('#topOverlay'); if(tt) tt.classList.remove('active', 'show'); }   // topOverlay (Stats > Top 3) closes smoothly by itself; this is the instant version
   function formError(id, msg, title){
     const el = $('#' + id); if(!el) return;
@@ -7443,9 +7464,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }
   // The order and the hidden symbols are saved on the ACCOUNT too (user metadata symbol_order / symbol_hidden) so they follow the person to every device; the browser copy is only for speed.
   // Saves wait 0.6 s after the last click (one call, not one per arrow press). While one is waiting or in flight the account value is not applied back, so a late reply can't undo a newer click.
-  let SYM_TIMER = null, SYM_BUSY = false;
+  let SYM_TIMER = null, SYM_BUSY = false, SYM_DIRTY = false;   // SYM_DIRTY: the symbols window changed something, so Home / Stats redraw when it closes
   function symSave(p){
-    store.set(symKey(), p);
+    SYM_DIRTY = true; store.set(symKey(), p);
     if(!current() || !Backend.ready) return;
     clearTimeout(SYM_TIMER);
     SYM_TIMER = setTimeout(async () => { SYM_TIMER = null; SYM_BUSY = true;
@@ -7609,8 +7630,16 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }
   renderTimeZone();
   $('#sp-reset').addEventListener('click', () => {      // puts every symbol back to popularity order and shows them all
-    symSave({ order:SYM_ALL.map(x => x.s), hidden:[] }); renderSymbolPrefs(); refreshHomeIfVisible();
+    symSave({ order:SYM_ALL.map(x => x.s), hidden:[] }); renderSymbolPrefs();
   });
+  // Scoreboard Symbols window: opened from Home (phone: top-right button, website: "Symbols" button in the banner). Home and Stats redraw once, when it closes.
+  const symOv = $('#symOverlay');
+  const symOpen = () => { renderSymbolPrefs(); symOv.classList.add('active'); $('#symClose').focus({ preventScroll:true }); };
+  const symShut = () => symOv.classList.remove('active');
+  $('#mt-syms').addEventListener('click', symOpen); $('#hm-syms').addEventListener('click', symOpen);
+  $('#symClose').addEventListener('click', symShut);
+  symOv.addEventListener('click', e => { if(e.target === symOv) symShut(); });
+  new MutationObserver(() => { if(!symOv.classList.contains('active') && SYM_DIRTY){ SYM_DIRTY = false; refreshHomeIfVisible(); refreshStatsIfVisible(); } }).observe(symOv, { attributes:true, attributeFilter:['class'] });
   // My own card: ring + glow + slightly bigger, and a short pop each time it scrolls into view so it is easy to spot.
   let HOME_IO = null;
   function homeWatchMine(){
@@ -7670,7 +7699,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     if(bd.error){ HOME.rows = []; grid.innerHTML = ''; formError('hm-error', bd.error.message, "Can't load trades"); return; }
     HOME.rows = bd.trades; HOME.note = ''; homeSub(HOME.rows.length, HOME.rows.reduce((m, r) => Math.max(m, r.place), 0));
     const what = HOME.board === 'best' ? 'winning' : 'losing', sym = HOME.symbol ? HOME.symbol + ' ' : '';
-    grid.innerHTML = HOME.rows.length ? HOME.rows.map(homeCardHtml).join('') : homeEmpty(HOME.symbol ? 'No ' + sym + what + ' trades for ' + homeLabel(HOME.day) : HOME.hiddenOnly ? 'Your symbols are hidden' : 'No ranked trades for ' + homeLabel(HOME.day), HOME.symbol || !HOME.hiddenOnly ? 'Traders import their ' + what + ' trades and they are ranked here.' : 'All symbols are hidden. Show them again in Settings.');
+    grid.innerHTML = HOME.rows.length ? HOME.rows.map(homeCardHtml).join('') : homeEmpty(HOME.symbol ? 'No ' + sym + what + ' trades for ' + homeLabel(HOME.day) : HOME.hiddenOnly ? 'Your symbols are hidden' : 'No ranked trades for ' + homeLabel(HOME.day), HOME.symbol || !HOME.hiddenOnly ? 'Traders import their ' + what + ' trades and they are ranked here.' : 'All symbols are hidden. Show them again with the Symbols button.');
     homeWatchMine();
     if(ver === HOME.ver){ HOME.loaded = true; HOME.stale = false; }
   }
@@ -8640,7 +8669,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const navBtns = [...document.querySelectorAll('.sb-nav button')], pageEls = [...document.querySelectorAll('.page')];
   // Phone top bar (.mtop): the page title replaces the banner; Profile gets a Settings gear on the right, Settings a back arrow to Profile.
   const MT_TITLES = { home:'Home', stats:'Stats', notifications:'Notifications', profile:'Profile', settings:'Settings' };
-  function mobileBar(k){ $('#mt-title').textContent = MT_TITLES[k] || 'Home'; $('#mt-gear').hidden = k !== 'profile'; $('#mt-back').hidden = k !== 'settings'; document.body.dataset.page = k; }
+  function mobileBar(k){ $('#mt-title').textContent = MT_TITLES[k] || 'Home'; $('#mt-gear').hidden = k !== 'profile'; $('#mt-syms').hidden = k !== 'home'; $('#mt-back').hidden = k !== 'settings'; document.body.dataset.page = k; }
   function showPage(k, opts){                        // opts: { back:true, y } = arriving by a back button: slide in from the left and put the scroll spot back
     opts = opts || {};
     if(!pageEls.some(p => p.dataset.page === k)) k = 'home';
