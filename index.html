@@ -199,6 +199,10 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
+35. MARKET HOLIDAYS (SQL section 45, migration 20261029210000_market_holidays.sql): a holiday is treated like a weekend day. Table market_holidays (NYSE full-day closures 2026-2028; the owner edits it, early closes are not holidays) feeds trading_day_of,
+   home_latest_day (+ home_latest_day_at), board_changes_at, market_is_open, my_trade_slots (open) and stats_page, so the board from before a holiday stays up until the next trading day ends (Thanksgiving: Wed's board opens Wed 6 PM ET, Fri's replaces it Fri 6 PM ET).
+   The app asks market_holiday_info() (HOL in index.html): closed now -> Holiday card on Home + compact on Stats; a holiday within 7 days -> heads-up line; the holiday list -> Home/Stats calendars mark holidays and refuse weekends + holidays (input._calRules in the UI kit).
+   HOL_HIDE_BOARD = true hides the scoreboard / charts while the card shows (default false: card on top, board below). Day arrows skip holidays (dkClosed). Without the SQL installed the page still works (weekends only).
 -->
 <html lang="en">
 <head>
@@ -927,6 +931,14 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
   .cal-day.today{ box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 75%, transparent); }
   .cal-day.on{ background:var(--ac); color:#10131c; font-weight:800; box-shadow:0 8px 18px -8px var(--ac); }
   .cal-day.dis{ opacity:.28; cursor:default; }
+  /* Calendars that pass rules (inp._calRules): weekends and market holidays cannot be picked. They stay focusable (aria-disabled) so the arrow keys still walk through them. */
+  .cal-day{ position:relative; }
+  .cal-day.off{ opacity:.28; cursor:default; } .cal-day.off:hover{ background:transparent; }
+  .cal-day.hol{ color:var(--hol); font-weight:800; background:color-mix(in srgb, var(--hol) 11%, transparent); opacity:1; }
+  .cal-day.hol::after{ content:''; position:absolute; left:50%; bottom:4px; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:var(--hol); }
+  .cal-day.hol.dis{ opacity:.6; }
+  .cal-key{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:var(--text-muted); }
+  .cal-key i{ width:7px; height:7px; border-radius:50%; background:var(--hol); }
   .cal-day:focus-visible, .cal-cell:focus-visible, .tm-opt:focus-visible, .cal-link:focus-visible, .cal-nav:focus-visible, .cal-title:focus-visible{ outline:2px solid var(--ac); outline-offset:1px; }
   .cal-pickgrid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; padding:4px 0 6px; }
   .cal-cell{ height:46px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--text); font:600 13.5px var(--font-sans); cursor:pointer; transition:background .12s ease, border-color .12s ease; }
@@ -1271,6 +1283,38 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   /* Like icon colors, one set per theme (no green or red: those mean profit and loss). Flame = orange, Crosshair / Lock in = cyan, Heart = pink. */
   :root{ --lk-up:#FF8A3D; --lk-lock:#22D3EE; --lk-heart:#F472B6; }
   html[data-theme="light"]{ --lk-up:#EA580C; --lk-lock:#0891B2; --lk-heart:#DB2777; }
+  /* ---------- Market holidays (Home + Stats cards, calendar marks). Data comes from SQL market_holiday_info() (section 45). ---------- */
+  :root{ --hol:#B58CFF; --hol-rgb:181,140,255; }
+  html[data-theme="light"]{ --hol:#7C3AED; --hol-rgb:124,58,237; }
+  .hol-card{ position:relative; overflow:hidden; display:flex; align-items:center; gap:22px; margin:14px 0 4px; padding:24px 26px; border-radius:22px; box-sizing:border-box;
+    border:1px solid color-mix(in srgb, var(--hol) 40%, var(--line-strong));
+    background:radial-gradient(120% 150% at 0% 0%, color-mix(in srgb, var(--hol) 20%, transparent), transparent 62%), radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--gold-muted) 15%, transparent), transparent 60%), linear-gradient(160deg, var(--surface), var(--surface-2));
+    box-shadow:0 18px 40px -26px rgba(var(--hol-rgb), .6); animation:holIn .55s cubic-bezier(.2,.8,.2,1) both; }
+  .hol-art{ flex:none; width:88px; height:88px; border-radius:26px; display:grid; place-items:center; color:var(--hol); background:color-mix(in srgb, var(--hol) 14%, transparent); border:1px solid color-mix(in srgb, var(--hol) 36%, var(--line)); }
+  .hol-art svg{ width:46px; height:46px; display:block; }
+  .hol-spark{ position:absolute; color:var(--hol); opacity:.7; pointer-events:none; animation:holTwinkle 3.2s ease-in-out infinite; }
+  .hol-spark.a{ top:14px; right:22px; width:16px; height:16px; } .hol-spark.b{ top:46px; right:58px; width:10px; height:10px; animation-delay:1.1s; } .hol-spark.c{ bottom:16px; right:30px; width:12px; height:12px; animation-delay:2.1s; }
+  .hol-main{ min-width:0; flex:1 1 auto; }
+  .hol-kicker{ display:inline-flex; align-items:center; gap:8px; font:800 11.5px var(--font-sans); letter-spacing:.14em; text-transform:uppercase; color:var(--hol); }
+  .hol-kicker i{ width:8px; height:8px; border-radius:50%; background:var(--hol); animation:holPulse 2.2s ease-out infinite; }
+  .hol-title{ margin:6px 0 8px; font:800 28px/1.12 var(--font-sans); letter-spacing:-.01em; color:var(--text); }
+  .hol-msg{ margin:0; max-width:64ch; font-size:14.5px; line-height:1.55; color:var(--text-muted); }
+  .hol-tip{ margin:8px 0 0; max-width:64ch; font-size:13.5px; line-height:1.5; color:var(--text); font-weight:600; }
+  .hol-facts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .hol-chip{ display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:6px; padding:7px 13px; border-radius:999px; font-size:12.5px; color:var(--text-muted); background:color-mix(in srgb, var(--text) 6%, transparent); border:1px solid var(--line); }
+  .hol-chip b{ color:var(--text); font-weight:700; }
+  .hol-card.compact{ padding:16px 18px; gap:16px; margin-top:12px; } .hol-card.compact .hol-art{ width:58px; height:58px; border-radius:18px; } .hol-card.compact .hol-art svg{ width:30px; height:30px; }
+  .hol-card.compact .hol-title{ font-size:21px; margin:4px 0 6px; } .hol-card.compact .hol-tip{ display:none; } .hol-card.compact .hol-facts{ margin-top:12px; } .hol-card.compact .hol-spark{ display:none; }
+  .hol-note{ display:flex; align-items:center; gap:10px; margin:12px 0 0; padding:10px 14px; border-radius:14px; font-size:13.5px; line-height:1.4; color:var(--text); border:1px solid color-mix(in srgb, var(--hol) 36%, var(--line-strong)); background:color-mix(in srgb, var(--hol) 9%, transparent); animation:holIn .4s ease both; }
+  .hol-note svg{ flex:none; width:18px; height:18px; color:var(--hol); }
+  @media (max-width:620px){ .hol-card{ flex-direction:column; align-items:flex-start; padding:18px; gap:14px; } .hol-art{ width:60px; height:60px; border-radius:18px; } .hol-art svg{ width:32px; height:32px; } .hol-title{ font-size:23px; }
+    .hol-card.compact{ flex-direction:row; align-items:center; } .hol-card.compact .hol-art{ display:none; } }
+  @keyframes holIn{ from{ opacity:0; transform:translateY(8px) scale(.985); } to{ opacity:1; transform:none; } }
+  @keyframes holPulse{ 0%{ box-shadow:0 0 0 0 rgba(var(--hol-rgb), .55); } 75%,100%{ box-shadow:0 0 0 9px rgba(var(--hol-rgb), 0); } }
+  @keyframes holTwinkle{ 0%,100%{ opacity:.25; transform:scale(.8) rotate(0deg); } 50%{ opacity:.9; transform:scale(1.1) rotate(20deg); } }
+  @media (prefers-reduced-motion:reduce){ .hol-card, .hol-note, .hol-spark, .hol-kicker i{ animation:none; } }
+  /* Optional: HOL_HIDE_BOARD = true (script) hides the scoreboard / charts while the Holiday card is up */
+  #page-home.hol-only #hm-board-bar, #page-home.hol-only #hm-sub, #page-home.hol-only #hm-grid, #page-stats.hol-only #st-bar, #page-stats.hol-only #st-banner, #page-stats.hol-only #st-note, #page-stats.hol-only #st-charts{ display:none; }
   .pf-lk.up{ --lkc:var(--lk-up); } .pf-lk.step{ --lkc:var(--lk-lock); } .pf-lk.heart{ --lkc:var(--lk-heart); }
   .pf-lk svg{ box-sizing:content-box; padding:9px; border-radius:50%; color:var(--lkc); background:color-mix(in srgb, var(--lkc) 14%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--lkc) 38%, transparent); }
   @media (max-width:700px){ .pf-lk svg{ padding:7px; } }
@@ -3137,7 +3181,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         <button type="button" class="hm-latest" id="hm-latest">Latest</button>
         <button type="button" class="hm-howto" id="hm-howto" aria-label="How To" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9"/><path d="M12 17.2h.01"/></svg><span class="hm-howto-t">How To</span></button>
       </div>
-      <div class="hm-bar">
+      <div id="hm-hol"></div>
+      <div class="hm-bar" id="hm-board-bar">
         <div class="hm-seg" role="group" aria-label="Board">
           <button type="button" class="best" id="hm-b-best" aria-pressed="true">Winners</button>
           <button type="button" class="worst" id="hm-b-worst" aria-pressed="false">Losers</button>
@@ -3156,7 +3201,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         <button type="button" class="hm-step" id="st-next" aria-label="Next trading day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
         <button type="button" class="hm-latest" id="st-latest">Latest</button>
       </div>
-      <div class="st-bar">
+      <div id="st-hol"></div>
+      <div class="st-bar" id="st-bar">
         <label class="hm-sym" for="st-sym"><select id="st-sym" aria-label="Symbol"></select></label>
         <div class="st-dir" id="st-dir" role="group" aria-label="Trade direction">
           <button type="button" class="long" data-side="long" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>Long<span class="st-lead" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg></span></button>
@@ -3834,6 +3880,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function openCalendar(inp, btn){
     var now = new Date(), todayISO = iso(now.getFullYear(), now.getMonth(), now.getDate());
     var sel = parseISO(inp.value), min = inp.min || '', max = inp.max || '';
+    var rules = typeof inp._calRules === 'function' ? inp._calRules : null;   // optional: iso -> { off, hol, title, label } (weekends and market holidays on Home and Stats)
+    function ruleOf(s){ try { return rules ? rules(s) : null; } catch (e) { return null; } }
+    function blocked(s){ if ((min && s < min) || (max && s > max)) return true; var r = ruleOf(s); return !!(r && r.off); }
     var base = sel || { y:now.getFullYear(), m:now.getMonth(), d:now.getDate() };
     if (!sel) { if (min && todayISO < min) base = parseISO(min); else if (max && todayISO > max) base = parseISO(max); }
     var st = { view:'days', y:base.y, m:base.m, yearBase:Math.floor(base.y / 12) * 12, focus:inp.value || iso(base.y, base.m, base.d) };
@@ -3845,7 +3894,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       if (f) { f.tabIndex = 0; f.focus({ preventScroll:true }); }
     }
     function pick(s){
-      if ((min && s < min) || (max && s > max)) return;
+      if (blocked(s)) return;
       inValue.set.call(inp, s); btn._sync(); closePop(true); fire(inp);
     }
     function render(){
@@ -3881,7 +3930,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
           if (s === todayISO) b.classList.add('today');
           if (s === inp.value) { b.classList.add('on'); b.setAttribute('aria-selected', 'true'); }
           if ((min && s < min) || (max && s > max)) { b.classList.add('dis'); b.disabled = true; }
-          b.setAttribute('aria-label', d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' }));
+          var rl = ruleOf(s);
+          if (rl && rl.hol) b.classList.add('hol');
+          if (rl && rl.off) { b.classList.add('off'); b.setAttribute('aria-disabled', 'true'); if (rl.title) b.title = rl.title; }
+          b.setAttribute('aria-label', d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' }) + (rl && rl.label ? '. ' + rl.label : ''));
           grid.appendChild(b);
         }
         grid.addEventListener('click', function(e){ var b = e.target.closest('.cal-day'); if (b && !b.disabled) pick(b.dataset.iso); });
@@ -3913,9 +3965,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       }
       var foot = el('div', 'cal-foot');
       var t = el('button', 'cal-link', 'Today'); t.type = 'button';
-      t.disabled = !!((min && todayISO < min) || (max && todayISO > max));
+      t.disabled = blocked(todayISO);
       t.onclick = function(){ pick(todayISO); };
       foot.appendChild(t);
+      if (rules) foot.appendChild(el('span', 'cal-key', '<i></i>Market holiday'));
       if (!inp.required) { var c = el('button', 'cal-link muted', 'Clear'); c.type = 'button'; c.onclick = function(){ inValue.set.call(inp, ''); btn._sync(); closePop(true); fire(inp); }; foot.appendChild(c); }
       pop.appendChild(foot);
     }
@@ -4236,6 +4289,11 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       },
       // ----- Home: daily rankings. Places are stored on the trades table by SQL triggers (section 18 of supabase-setup.sql); the browser only reads them. -----
       async latestTradingDay(){ const { data, error } = await sb.rpc('home_latest_day'); return { error:err(error), day:typeof data === 'string' ? data.slice(0, 10) : null }; },
+      // Market holidays (SQL market_holiday_info, section 45): is the market closed for a holiday right now, the next holiday within 7 days, and the holiday list for the calendars.
+      async marketHolidayInfo(){ const { data, error } = await sb.rpc('market_holiday_info'); if(error || !data) return { error:err(error) || { message:'No holiday data.' }, info:null };
+        const dk = v => typeof v === 'string' ? v.slice(0, 10) : null;
+        return { error:null, info:{ closed:!!data.closed, holidayDay:dk(data.holiday_day), holidayName:data.holiday_name || '', shownDay:dk(data.shown_day), nextDay:dk(data.next_day), reopensAt:data.reopens_at || null, boardAt:data.board_at || null,
+          upcomingDay:dk(data.upcoming_day), upcomingName:data.upcoming_name || '', upcomingIn:data.upcoming_in == null ? null : Number(data.upcoming_in), holidays:(data.holidays || []).map(x => ({ day:dk(x.day), name:x.name || '' })) } }; },
       async homeBoard(day, board, symbol){ const { data, error } = await sb.rpc('home_board', { p_day:day, p_board:board, p_symbol:symbol || '' });
         return { error:err(error), trades:(data || []).map(r => ({ place:Number(r.place), id:r.id, userId:r.user_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, symbol:r.symbol || '', side:r.side || '',
           size:Number(r.size), entry:Number(r.entry_price), exit:Number(r.exit_price), risk:r.margin_risk == null ? null : Number(r.margin_risk), opened:r.opened_at, closed:r.closed_at,
@@ -5800,7 +5858,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     try{
       const lt = await Backend.latestTradingDay();
       if(lt.error || !lt.day){ formError('gen-error', (lt.error ? lt.error.message : 'No trading day returned.') + ' Run the newest supabase-setup.sql.', "Can't generate"); genBusy(false); return; }
-      GEN.latest = lt.day;
+      GEN.latest = lt.day; await holLoad();   // so the test days skip market holidays
       const step = 10;   // accounts per save call
       for(let done = 0; done < n; done += step){
         const batch = []; for(let i = 0; i < Math.min(step, n - done); i++) batch.push(genUser(used));
@@ -5835,7 +5893,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       genBusy(true, 'Creating\u2026', true);
       const lt = await Backend.latestTradingDay();
       if(lt.error || !lt.day){ formError('gen-error', (lt.error ? lt.error.message : 'No trading day returned.') + ' Run the newest supabase-setup.sql.', "Can't generate"); genBusy(false); return; }
-      GEN.latest = lt.day;
+      GEN.latest = lt.day; await holLoad();   // so the test days skip market holidays
       const trades = genTradeSet(genProfile(), genDays().slice(0, 1));   // one trade per symbol on the trading day Home shows
       const r = await Backend.generateMyTrades(trades);
       if(r.error) formError('gen-error', r.error.message, "Can't generate"); else { added = r.added; skipped = r.skipped; }
@@ -5885,7 +5943,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       genBusy(true, 'Creating\u2026', 'nt');
       const lt = await Backend.latestTradingDay();
       if(lt.error || !lt.day){ formError('gen-error', (lt.error ? lt.error.message : 'No trading day returned.') + ' Run the newest supabase-setup.sql.', "Can't generate"); genBusy(false); return; }
-      GEN.latest = lt.day;
+      GEN.latest = lt.day; await holLoad();   // so the test days skip market holidays
       const plan = genNotifPlan();
       const r = await Backend.generateMyNotifications(plan.users, plan.mine);
       if(r.error) formError('gen-error', r.error.message + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't generate"); else res = r.result;
@@ -7009,7 +7067,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }
   function imShowDone(){
     showConfirm({ title:'Logging is closed for now', noCancel:true, confirmLabel:'Got it',
-      message:'You can log or swap your 2 trades (one Best, one Worst) until 5:55 PM ET on the current trading day. That time has passed, so nothing can be added or replaced right now. The next trading day opens at 6:00 PM ET (Sunday evening over the weekend).',
+      message:HOL.info && HOL.info.closed ? 'Markets are closed for ' + HOL.info.holidayName + ', so nothing can be added or replaced right now. The next trading day opens ' + holEt(HOL.info.reopensAt, { weekday:'long' }) + ' at 6:00 PM ET.'
+        : 'You can log or swap your 2 trades (one Best, one Worst) until 5:55 PM ET on the current trading day. That time has passed, so nothing can be added or replaced right now. The next trading day opens at 6:00 PM ET (Sunday evening over the weekend).',
       icon:ICO('<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>') });
   }
   function imRenderSlots(){
@@ -7417,8 +7476,80 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const dkFmt = d => d.getUTCFullYear() + '-' + imPad(d.getUTCMonth() + 1) + '-' + imPad(d.getUTCDate());
   const dkAdd = (k, n) => { const d = dkParse(k); d.setUTCDate(d.getUTCDate() + n); return dkFmt(d); };
   const dkWeekend = k => { const w = dkParse(k).getUTCDay(); return w === 0 || w === 6; };
-  function dkPrevTrading(k){ do { k = dkAdd(k, -1); } while(dkWeekend(k)); return k; }
-  function dkNextTrading(k){ do { k = dkAdd(k, 1); } while(dkWeekend(k)); return k; }
+  // ---------- Market holidays ----------
+  // The rule lives in SQL (section 45): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends. The browser only draws it:
+  // HOL.info = the answer of market_holiday_info() (memory only), HOL.map = { 'YYYY-MM-DD': 'Holiday name' } for the calendars and the day arrows.
+  // SET THIS TO true IF YOU WANT THE SCOREBOARD (Home) AND CHARTS (Stats) HIDDEN WHILE THE HOLIDAY CARD IS SHOWING. false = the card sits on top and the previous board stays below it.
+  const HOL_HIDE_BOARD = false;
+  const HOL = { info:null, map:{}, at:0, p:null, retry:0 };
+  const dkClosed = k => dkWeekend(k) || !!HOL.map[k];
+  function dkPrevTrading(k){ do { k = dkAdd(k, -1); } while(dkClosed(k)); return k; }
+  function dkNextTrading(k){ do { k = dkAdd(k, 1); } while(dkClosed(k)); return k; }
+  const holEt = (ts, o) => new Date(ts).toLocaleDateString('en', Object.assign({ timeZone:'America/New_York' }, o));
+  const HOL_ART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10.5h17"/><path d="M12 12.4l.95 2 2 .95-2 .95-.95 2-.95-2-2-.95 2-.95z" fill="currentColor" stroke-width="1"/></svg>';
+  const HOL_STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.6 8.4L23 12l-8.4 2.6L12 23l-2.6-8.4L1 12l8.4-2.6z"/></svg>';
+  const HOL_COPY = [   // [matches the holiday name, title, message]
+    [/thanksgiving/i, 'Happy Thanksgiving', 'Be thankful for the wins, and for the losses that taught you something. Enjoy the table, the people and the day off.'],
+    [/christmas/i, 'Merry Christmas', 'Close the charts, be with the people you love, and come back rested. The market will be here.'],
+    [/new year/i, 'Happy New Year', 'A fresh page and a clean slate. Set your goals, trust your plan, and come back sharp.'],
+    [/independence/i, 'Happy Independence Day', 'Enjoy the fireworks away from the screen. The market reopens soon.'],
+    [/memorial/i, 'Memorial Day', 'Today is for remembering those who gave everything. Take the day with gratitude; the charts can wait.'],
+    [/labor/i, 'Happy Labor Day', 'You have earned this one. Hard work and patience are what build a trading career, and so is rest.'],
+    [/martin luther|mlk/i, 'Martin Luther King Jr. Day', 'A day to reflect and to give back. Step away from the charts and come back with a clear head.'],
+    [/president|washington/i, "Happy Presidents' Day", 'Enjoy the long weekend. Rest, look back at your trades if you want to, and get ready for the next session.'],
+    [/good friday/i, 'Good Friday', 'Wishing you a peaceful day. The market is closed, so rest, recharge and come back ready.'],
+    [/juneteenth/i, 'Happy Juneteenth', 'A day of remembrance and celebration. Enjoy the day off; the market reopens soon.']];
+  const HOL_TIPS = ['Win or lose, you showed up and logged your trades. That discipline is what builds a career.', 'Great traders rest well. A clear head is an edge.',
+    'One day off never ruined a trading plan. Come back focused, patient and ready.', 'Consistency beats intensity. See you at the next open.', 'Protect your capital, protect your energy, and enjoy the day.'];
+  function holCopy(name){ const m = HOL_COPY.find(x => x[0].test(name || '')); return m ? { title:m[1], msg:m[2] } : { title:name || 'Market holiday', msg:'The market is closed today. Rest up, reset, and enjoy the day. Time away from the screen is part of the process.' }; }
+  function holCardHtml(i, compact){
+    const c = holCopy(i.holidayName), tip = HOL_TIPS[(i.holidayDay || '').split('-').reduce((a, x) => a + (+x || 0), 0) % HOL_TIPS.length];
+    const chip = (l, v) => '<span class="hol-chip">' + esc(l) + ' <b>' + esc(v) + '</b></span>';
+    return '<div class="hol-card' + (compact ? ' compact' : '') + '" role="region" aria-label="Market holiday">' +
+      '<span class="hol-spark a">' + HOL_STAR + '</span><span class="hol-spark b">' + HOL_STAR + '</span><span class="hol-spark c">' + HOL_STAR + '</span>' +
+      '<span class="hol-art">' + HOL_ART + '</span><div class="hol-main"><span class="hol-kicker"><i></i>Market closed</span><h3 class="hol-title">' + esc(c.title) + '</h3>' +
+      '<p class="hol-msg">' + esc(c.msg) + ' Markets are closed for ' + esc(i.holidayName) + '.</p><p class="hol-tip">' + esc(tip) + '</p>' +
+      '<div class="hol-facts">' + chip('Closed', homeLabel(i.holidayDay, true)) + chip('Trading resumes', holEt(i.reopensAt, { weekday:'long' }) + ' at 6:00 PM ET') +
+      chip('Next board', holEt(i.boardAt, { weekday:'short', month:'short', day:'numeric' }) + ' at 6:00 PM ET') + '</div></div></div>';
+  }
+  function holNoteHtml(i){
+    const when = (i.upcomingIn === 1 ? 'tomorrow, ' : 'on ') + homeLabel(i.upcomingDay);
+    return '<div class="hol-note" role="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10.5h17"/></svg>' +
+      '<span><b>Heads up:</b> markets are closed <b>' + esc(when) + '</b> for <b>' + esc(i.upcomingName) + '</b>.</span></div>';
+  }
+  function holRender(){
+    const hb = $('#hm-hol'), sb = $('#st-hol'); if(!hb || !sb) return;
+    const i = current() ? HOL.info : null, put = (box, html) => { if(box._k !== html){ box._k = html; box.innerHTML = html; } };
+    const homeNow = !HOME.day || HOME.day === HOME.latest, stNow = !STATS.day || STATS.day === STATS.latest;   // the card is about right now: not shown while looking at an older day
+    const draw = (now, compact) => !i || !now ? '' : i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : '';
+    put(hb, draw(homeNow, false)); put(sb, draw(stNow, true));
+    $('#page-home').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && homeNow);
+    $('#page-stats').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && stNow);
+  }
+  async function holLoad(force){
+    if(!current() || !Backend.ready){ HOL.info = null; HOL.map = {}; holRender(); return null; }
+    if(!force && HOL.info && Date.now() - HOL.at < 20000) return HOL.info;
+    if(!force && Date.now() < HOL.retry) return HOL.info;
+    if(HOL.p) return HOL.p;
+    HOL.p = (async () => { try{
+      const r = await Backend.marketHolidayInfo();
+      if(r.error || !r.info){ HOL.retry = Date.now() + 600000; return HOL.info; }   // e.g. the SQL section 45 is not installed yet: weekends still work, try again in 10 minutes
+      const was = HOL.info; HOL.info = r.info; HOL.at = Date.now(); HOL.map = {}; r.info.holidays.forEach(x => { if(x.day) HOL.map[x.day] = x.name; });
+      holRender();
+      if(was && (was.closed !== r.info.closed || was.holidayDay !== r.info.holidayDay)){ if(!$('#page-home').hidden) loadHome(true); if(!$('#page-stats').hidden) loadStats(true); }   // the market just closed or reopened
+      return r.info;
+    } finally { HOL.p = null; } })();
+    return HOL.p;
+  }
+  // Calendar rules for the Home and Stats date pickers (the UI kit reads input._calRules): weekends and holidays are marked or dimmed and cannot be picked.
+  function holCalRule(k){
+    const name = HOL.map[k];
+    if(name) return { off:true, hol:true, title:name + ' \u00B7 Market closed', label:name + ', market closed' };
+    if(dkWeekend(k)) return { off:true, title:'Market closed on weekends', label:'Market closed, weekend' };
+    return null;
+  }
+  $('#hm-date')._calRules = holCalRule; $('#st-date')._calRules = holCalRule;
+  setInterval(() => { if(current() && (!$('#page-home').hidden || !$('#page-stats').hidden)) holLoad(true); }, 60000);
   function homeRecentDays(n, latest){ const out = []; let k = latest; for(let i = 0; i < n; i++){ out.push(k); k = dkPrevTrading(k); } return out; }   // used by the test-data generator
   const homeLabel = (k, long) => dkParse(k).toLocaleDateString('en', long ? { weekday:'long', month:'long', day:'numeric', year:'numeric', timeZone:'UTC' } : { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
 
@@ -7449,6 +7580,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     $('#hm-next').disabled = !HOME.day || !HOME.latest || HOME.day >= HOME.latest; $('#hm-latest').disabled = !HOME.day || HOME.day === HOME.latest;
     ['best', 'worst'].forEach(b => $('#hm-b-' + b).setAttribute('aria-pressed', String(HOME.board === b)));
     $('#hm-grid').className = 'hm-grid ' + HOME.board;
+    holRender();
   }
   // ---------- Scoreboard symbols ----------
   // The order and the hidden symbols are saved on the ACCOUNT (symSave / symFromAccount); the default order is popularity (SYM_CAT).
@@ -7653,7 +7785,11 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const best = HOME.board === 'best', sym = HOME.symbol ? HOME.symbol + ' ' : '', gap = count && span > count;
     let t = 'Trading day ' + homeLabel(HOME.day, true) + ', closed 5:00 PM ET. ';
     if(count) t += 'Showing the ' + (count === 1 ? 'only ' + sym + (best ? 'winning trade' : 'losing trade') : (count < HOME_TOP && !gap ? count : 'top ' + (gap ? span : count)) + ' ' + (best ? 'best ' : 'worst ') + sym + 'trades') + ', ranked by ' + (best ? 'biggest gain' : 'biggest loss') + ' in points' + (gap ? ' (a deleted trade keeps its place empty)' : '') + '. ';
-    if(HOME.day === HOME.latest) t += 'Import your trades by 5:55 PM ET. The board updates at 6:00 PM ET each trading day.';
+    if(HOME.day === HOME.latest){
+      const hi = HOL.info && HOL.info.closed ? HOL.info : null;
+      t += hi ? 'Markets are closed for ' + hi.holidayName + '. This board stays up until the next trading day ends: the new board opens ' + holEt(hi.boardAt, { weekday:'long' }) + ' at 6:00 PM ET.'
+              : 'Import your trades by 5:55 PM ET. The board updates at 6:00 PM ET each trading day.';
+    }
     $('#hm-sub').innerHTML = (HOME.note ? '<span class="hm-note">' + esc(HOME.note) + ' </span>' : '') + '<span class="hm-desc">' + esc(t) + '</span>';
   }
   // Title of the banner's money tile follows the day being looked at: the latest trading day is "Today's", the one before "Yesterday's", then the weekday, then the date.
@@ -7679,7 +7815,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       rankTile('Winners Board', sum.best, 'best') + rankTile('Losers Board', sum.worst, 'worst');
   }
   async function loadHome(soft){
-    const seq = ++HOME.seq, ver = HOME.ver, grid = $('#hm-grid'); formError('hm-error', '');
+    const seq = ++HOME.seq, ver = HOME.ver, grid = $('#hm-grid'); formError('hm-error', ''); holLoad();
     if(!current() || !Backend.ready){ homeBanner(null, 'out'); grid.innerHTML = homeEmpty('Sign in to see the top trades', 'The best and worst trades of the day show up here.'); return; }
     const lt = await Backend.latestTradingDay(); if(seq !== HOME.seq) return;
     if(lt.error || !lt.day){ grid.innerHTML = ''; formError('hm-error', (lt.error ? lt.error.message : 'No trading day returned.') + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't load Home"); return; }
@@ -7702,7 +7838,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }
   function homePick(k, note){
     if(!HOME.latest || !/^\d{4}-\d{2}-\d{2}$/.test(k || '')) return homeSyncBar();
-    if(dkWeekend(k)){ k = dkPrevTrading(dkAdd(k, 1)); note = 'Futures are closed on weekends, so this shows ' + homeLabel(k) + '.'; }
+    if(dkClosed(k)){ const hn = HOL.map[k]; k = dkPrevTrading(dkAdd(k, 1)); note = (hn ? 'Markets are closed for ' + hn : 'Futures are closed on weekends') + ', so this shows ' + homeLabel(k) + '.'; }
     if(k > HOME.latest){ k = HOME.latest; note = 'That trading day is not logged yet, so this shows the latest one.'; }
     HOME.day = k; HOME.auto = k === HOME.latest; HOME.note = note || ''; loadHome();
   }
@@ -8046,7 +8182,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   // ONE call per load (SQL stats_page, section 28): the bars and, when needed, the finished Summary themes. The themes only depend on the symbol, so when just the
   // bar width changes the call asks for the bars only. SQL serves both from a cache, so many users opening this page cost almost nothing.
   async function loadStats(soft, withThemes){
-    const seq = ++STATS.seq, ver = STATS.ver, box = $('#st-charts'); formError('st-error', '');
+    const seq = ++STATS.seq, ver = STATS.ver, box = $('#st-charts'); formError('st-error', ''); holLoad();
     if(!current() || !Backend.ready){ box.innerHTML = '<p class="st-note">Sign in to see the stats.</p>'; { const bn = $('#st-banner'); bn.innerHTML = ''; bn._k = null; } STATS.sides = null; STATS.sideSym = undefined; STATS.sum = null; STATS.sumSym = undefined; STATS.sumHtml = null; STATS.empty = null; return; }
     stSymbolsUi();
     const sym = STATS.symbol, needTh = !!withThemes || !soft || !STATS.sum || STATS.sumSym !== sym;
@@ -8078,12 +8214,13 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const n = $('#st-note'), lbl = STATS.day ? homeLabel(STATS.day, true) : '';
     n.innerHTML = (STATS.note ? '<span class="hm-note">' + esc(STATS.note) + ' </span>' : '') + '<span class="st-desc">' + esc((lbl ? 'Trading day ' + lbl + '. ' : '') + 'When trades were opened during the trading day, in Eastern Time (ET). The day runs from the 6:00 PM ET open to the 5:00 PM ET close.' +
       (STATS.day && STATS.day === STATS.latest ? ' It updates at 6:00 PM ET each trading day.' : '') + ' Tap a bar for details.') + '</span>';
+    holRender();
   }
   function stNewDay(){ STATS.sum = null; STATS.sumSym = undefined; STATS.sumHtml = null; STATS.sides = null; STATS.sideSym = undefined; loadStats(); }   // everything is for the old day: start over
   function stPick(k){
     if(!STATS.latest || !/^\d{4}-\d{2}-\d{2}$/.test(k || '')) return stSyncBar();
     let note = '';
-    if(dkWeekend(k)){ k = dkPrevTrading(dkAdd(k, 1)); note = 'Futures are closed on weekends, so this shows ' + homeLabel(k) + '.'; }
+    if(dkClosed(k)){ const hn = HOL.map[k]; k = dkPrevTrading(dkAdd(k, 1)); note = (hn ? 'Markets are closed for ' + hn : 'Futures are closed on weekends') + ', so this shows ' + homeLabel(k) + '.'; }
     if(k > STATS.latest){ k = STATS.latest; note = 'That trading day is not logged yet, so this shows the latest one.'; }
     if(k === STATS.day && !note){ return stSyncBar(); }
     STATS.day = k; STATS.auto = k === STATS.latest; STATS.note = note; stNewDay();
