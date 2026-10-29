@@ -88,7 +88,7 @@ Every change must keep that move cheap:
    Trading day = Sunday 6 PM to Friday 5 PM Eastern, named after the day it ends; traders have until 5:55 PM ET to log a day's trades and Home switches to that day's board at 6:00 PM ET (Friday's day stays
    until Monday 6:00 PM ET). That rule exists once, in SQL (trading_day_of, home_latest_day). Point values live in the futures_contracts table and must
    match SYM_CAT in this file (point value and default risk). A symbol missing from that table is not ranked. Best = winners by biggest positive points, Worst = losers by biggest negative
-   points (ties: R:R). The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Holidays are not modelled.
+   points (ties: R:R). The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Market holidays: see note 35.
 16. LIKES (SQL section 23): Home cards show a FLAME (Best) or crosshair "lock in" (Worst) chip with a count, double tap likes (the words in the UI are "Flame" and "Lock in"; the SQL names stay thumbs up / lock-in); profiles show flame / lock-in / profile-like totals, each icon in a tinted ring. Colors = --lk-up (orange) / --lk-lock (cyan) / --lk-heart (pink), set per theme, never green or red and a heart to like a profile. Own trades and profiles cannot be liked.
 17. NOTIFICATIONS PAGE (SQL section 25): cards for Best likes (thumbs up on my winning trades), Worst likes (lock-ins / step-it-up on my losing trades), profile likes, new followers,
    trades logged by people I follow (only trades logged after I followed), my own board places (#1 to #25 on a symbol's Best / Worst board, from the moment the board is shown) and top 3
@@ -177,7 +177,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    that this device was refused (localStorage nexus_signup_block_until: 24h for 13-17, a year for under 13) so the date cannot just be retyped; that is a speed bump, the database is the rule.
    Existing accounts are not asked. Keep the Privacy Policy in step: it should say the birth date is checked once and not kept.
 31. SETTINGS PAGE LAYOUT (page-settings): cards are grouped under small headings, in this order: Preferences (Theme [phone only], Time Zone & Clock), Notifications, Privacy & Safety (Hide from search,
-   Blocked Users), Legal & Support (Terms, Privacy, Contact support, Report a problem, version), Admin tools (#adm-group: Test Data Generator + Welcome Tour preview, shown ONLY to admins by refreshGenerator()),
+   Blocked Users), Legal & Support (Terms, Privacy, Contact support, Report a problem, version), Admin tools (#adm-group: Test Data Generator, Keep Supabase Awake, Holiday Card Preview, Welcome Tour preview, shown ONLY to admins by refreshGenerator()),
    Danger zone (Delete Account), and the Account card at the VERY BOTTOM so Log out [phone only] is the last thing on the page (no email shown, Edit Profile has it; Change password [phone only], Download my data, Log out of all devices, Log out).
    Keep Account last. A new card goes under the heading it belongs to. SCOREBOARD SYMBOLS are NOT in Settings any more: they are a pop up window (#symOverlay, ids #sp-list / #sp-reset kept) opened from Home by #mt-syms (phone top bar,
    top right, shown on Home only, see mobileBar) and #hm-syms (website, in the Home banner; hidden on phones). symSave() sets SYM_DIRTY and the window's close hook redraws Home + Stats once.
@@ -196,12 +196,19 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user applies SQL with the Supabase CLI. In a folder on their (cheap, Windows) laptop they keep supabase/migrations/*.sql, and one command, `npx supabase db push`, runs only the migration files the project has not seen yet.
    Their project ref is ckbvxdygagrckbdvemzv. EVERY time you change the database: (1) append the new numbered section to supabase-setup.sql (that file stays the full, current copy; read it before editing any existing function),
    AND (2) write that same section as a NEW migration file named <14 digit timestamp, later than the last one>_<short_name>.sql, e.g. 20261105120000_profile_privacy.sql, and hand both files back.
-   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44).
+   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
-35. MARKET HOLIDAYS (SQL section 45, migration 20261029210000_market_holidays.sql): a holiday is treated like a weekend day. Table market_holidays (NYSE full-day closures 2026-2028; the owner edits it, early closes are not holidays) feeds trading_day_of,
-   home_latest_day (+ home_latest_day_at), board_changes_at, market_is_open, my_trade_slots (open) and stats_page, so the board from before a holiday stays up until the next trading day ends (Thanksgiving: Wed's board opens Wed 6 PM ET, Fri's replaces it Fri 6 PM ET).
-   The app asks market_holiday_info() (HOL in index.html): closed now -> Holiday card on Home + compact on Stats; a holiday within 7 days -> heads-up line; the holiday list -> Home/Stats calendars mark holidays and refuse weekends + holidays (input._calRules in the UI kit).
+35. MARKET HOLIDAYS (SQL sections 45 + 46, migrations 20261029210000_market_holidays.sql and 20261029230000_holiday_rules.sql): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends
+   (Thanksgiving: Wed's board opens Wed 6 PM ET, the card shows until Thu 6 PM ET when the market reopens, Fri's board replaces it Fri 6 PM ET).
+   THE LIST IS WORKED OUT BY RULE FOR ANY YEAR (SQL nyse_rule_holiday: the 10 NYSE full-day closures, Easter-based Good Friday, Sat -> Fri / Sun -> Mon "(observed)" shifts; a Saturday Jan 1 is NOT moved, NYSE rule). Nothing needs reseeding.
+   The table market_holidays now holds only the owner's EXCEPTIONS (closed = true: extra closure, closed = false: the market is open that day after all); examples are in the section 46 comment. Early closes are not holidays.
+   Everything (trading_day_of, home_latest_day(_at), board_changes_at, market_is_open, my_trade_slots, trade_log_error, stats_page) asks market_holiday_name(). CME equity futures do trade short sessions on some of these days; "closed all day" is the owner's simplification.
+   The app asks market_holiday_info() ONCE (HOL in index.html): closed now -> Holiday card on Home + compact on Stats; a holiday within 7 days -> heads-up line; the holiday list -> Home/Stats calendars mark holidays and refuse weekends + holidays (input._calRules in the UI kit).
+   NO POLLING: the answer carries valid_until (SQL section 47: the next midnight ET, shortened only when a closure starts or ends sooner: the 6 PM ET the Holiday card appears, or the 6 PM ET the market reopens; so about 1 call per person per day and edits to the exceptions table reach people within a day); holLoad() makes no call before it and ONE timer (HOL.timer, with a little jitter so 50,000 phones do not call at the same second) asks again then, only while Home or Stats is open.
+   HEADS-UP LINE = ONCE PER HOLIDAY PER PERSON: the first time it is drawn on a visible Home/Stats page the browser calls Backend.holidayHeadsupSeen(day) (SQL holiday_headsup_seen, table kept per account, in Download my data); SQL then skips that holiday for that person.
+   ADMIN: Settings -> Admin tools -> Holiday Card Preview (#hol-card) calls SQL admin_holiday_preview() for a random (or chosen) holiday and draws the Holiday card or the heads-up line on Home + Stats for that admin only (HOL.preview, memory only, nothing saved, a Preview bar with Stop preview).
+   The real status stays in HOL.info (the import dialog and calendars use it, never the preview). admin_holiday_reset_seen() lets the admin see their own heads-up line again.
    HOL_HIDE_BOARD = true hides the scoreboard / charts while the card shows (default false: card on top, board below). Day arrows skip holidays (dkClosed). Without the SQL installed the page still works (weekends only).
 -->
 <html lang="en">
@@ -1307,6 +1314,12 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .hol-card.compact .hol-title{ font-size:21px; margin:4px 0 6px; } .hol-card.compact .hol-tip{ display:none; } .hol-card.compact .hol-facts{ margin-top:12px; } .hol-card.compact .hol-spark{ display:none; }
   .hol-note{ display:flex; align-items:center; gap:10px; margin:12px 0 0; padding:10px 14px; border-radius:14px; font-size:13.5px; line-height:1.4; color:var(--text); border:1px solid color-mix(in srgb, var(--hol) 36%, var(--line-strong)); background:color-mix(in srgb, var(--hol) 9%, transparent); animation:holIn .4s ease both; }
   .hol-note svg{ flex:none; width:18px; height:18px; color:var(--hol); }
+  /* Admin preview bar (Settings -> Admin tools -> Holiday Card Preview): drawn above the card / line, only the admin ever sees it */
+  .hol-prev{ display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px; margin:14px 0 -6px; padding:2px 6px 2px 14px; border-radius:14px; font-size:12.5px; line-height:1.4; color:var(--text-muted); border:1px dashed color-mix(in srgb, var(--hol) 55%, var(--line-strong)); background:color-mix(in srgb, var(--hol) 7%, transparent); }
+  .hol-prev-b{ font:800 11px var(--font-sans); letter-spacing:.14em; text-transform:uppercase; color:var(--hol); }
+  .hol-prev-x{ margin-left:auto; min-height:44px; padding:0 10px; border:0; background:none; color:var(--hol); font:700 13px var(--font-sans); text-decoration:underline; text-underline-offset:3px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .hol-prev + .hol-card, .hol-prev + .hol-note{ margin-top:10px; }
+  #hol-card .gen-actions .stamp-btn{ white-space:nowrap; }
   @media (max-width:620px){ .hol-card{ flex-direction:column; align-items:flex-start; padding:18px; gap:14px; } .hol-art{ width:60px; height:60px; border-radius:18px; } .hol-art svg{ width:32px; height:32px; } .hol-title{ font-size:23px; }
     .hol-card.compact{ flex-direction:row; align-items:center; } .hol-card.compact .hol-art{ display:none; } }
   @keyframes holIn{ from{ opacity:0; transform:translateY(8px) scale(.985); } to{ opacity:1; transform:none; } }
@@ -3332,6 +3345,23 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         <p class="gen-status" id="ka-status" aria-live="polite"></p>
         <div class="gen-actions"><button type="button" class="stamp-btn secondary" id="ka-run">Run Now</button></div>
       </div>
+      <div class="gen-card" id="hol-card">
+        <div class="gen-head"><h4>Holiday Card Preview</h4><span class="gen-badge">Admin</span></div>
+        <p class="gen-sub">See the Holiday card, or the heads-up line that shows before a holiday, on Home and Stats without waiting for a real one. It picks a random holiday (or the one you choose), asks SQL what the app would show at that moment, and draws it for you only. Nothing is saved for anyone, and reloading the page clears it. Use a custom name to see how a holiday the app has no greeting for looks.</p>
+        <div class="form-error" id="hol-error" role="alert"></div>
+        <div class="gen-grid">
+          <div class="im-f"><label for="hol-kind">Show</label><select id="hol-kind" class="tz-select"><option value="card">Holiday card (market closed)</option><option value="headsup">Heads-up line (before a holiday)</option></select></div>
+          <div class="im-f"><label for="hol-pick">Holiday</label><select id="hol-pick" class="tz-select"></select></div>
+          <div class="im-f"><label for="hol-name">Custom Holiday Name</label><input id="hol-name" type="text" maxlength="60" autocomplete="off" placeholder="Optional"><small class="im-hint">Shown instead of the real name</small></div>
+        </div>
+        <p class="gen-status" id="hol-status" aria-live="polite">No preview showing.</p>
+        <div class="gen-actions"><button type="button" class="stamp-btn" id="hol-go">Generate Preview</button><button type="button" class="stamp-btn secondary" id="hol-view-home" disabled>View On Home</button><button type="button" class="stamp-btn secondary" id="hol-view-stats" disabled>View On Stats</button><button type="button" class="stamp-btn secondary" id="hol-stop" disabled>Stop Preview</button></div>
+        <div class="gen-mine">
+          <h5>Heads-Up Line Memory</h5>
+          <p class="gen-sub">The real heads-up line shows once per holiday for each person, then never again. This forgets which ones your own account has already seen, so you can watch the real line show (and be remembered) again.</p>
+          <div class="gen-actions"><button type="button" class="stamp-btn secondary" id="hol-reset">Reset My Heads-Up Flags</button></div>
+        </div>
+      </div>
       <div class="sp-card" id="tour-test-card">
         <div class="sp-head"><div><h4>Preview the Welcome Tour</h4><p>Plays the first-login How To spotlight again so you can see it. Nothing is saved on your account.</p></div><button type="button" class="stamp-btn secondary" id="tourTestBtn">Start preview</button></div>
       </div>
@@ -4151,6 +4181,13 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const tzOpt = o => Object.assign({ timeZone:tzPref, hourCycle:hc24 ? 'h23' : 'h12' }, o);   // add the chosen zone and clock to any toLocale...String options
 
   // ===================================================================================
+  // Shapes the answer of SQL market_holiday_info() / admin_holiday_preview() (section 46) into a plain app object. Pure data shaping, used only by the Backend adapter below.
+  function holInfoFromRow(data){
+    const dk = v => typeof v === 'string' ? v.slice(0, 10) : null;
+    return { closed:!!data.closed, holidayDay:dk(data.holiday_day), holidayName:data.holiday_name || '', shownDay:dk(data.shown_day), nextDay:dk(data.next_day), reopensAt:data.reopens_at || null, boardAt:data.board_at || null,
+      upcomingDay:dk(data.upcoming_day), upcomingName:data.upcoming_name || '', upcomingIn:data.upcoming_in == null ? null : Number(data.upcoming_in), holidays:(data.holidays || []).map(x => ({ day:dk(x.day), name:x.name || '' })),
+      validUntil:data.valid_until || null, preview:!!data.preview, picked:data.holiday_picked || '' };
+  }
   // BACKEND ADAPTER: the ONLY code that talks to Supabase (see the migration note at the top of this file).
   // The UI below receives plain app objects: user = {id,email,username,nickname,avatarSeed}, results = {error:{message}|null}.
   // Moving to Nhost = rewrite this one object; nothing else should change.
@@ -4289,11 +4326,14 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       },
       // ----- Home: daily rankings. Places are stored on the trades table by SQL triggers (section 18 of supabase-setup.sql); the browser only reads them. -----
       async latestTradingDay(){ const { data, error } = await sb.rpc('home_latest_day'); return { error:err(error), day:typeof data === 'string' ? data.slice(0, 10) : null }; },
-      // Market holidays (SQL market_holiday_info, section 45): is the market closed for a holiday right now, the next holiday within 7 days, and the holiday list for the calendars.
+      // Market holidays (SQL market_holiday_info, sections 45 + 46): is the market closed for a holiday right now, the next holiday within 7 days (not yet seen by this person), the holiday list for the calendars, and valid_until (when to ask again).
       async marketHolidayInfo(){ const { data, error } = await sb.rpc('market_holiday_info'); if(error || !data) return { error:err(error) || { message:'No holiday data.' }, info:null };
-        const dk = v => typeof v === 'string' ? v.slice(0, 10) : null;
-        return { error:null, info:{ closed:!!data.closed, holidayDay:dk(data.holiday_day), holidayName:data.holiday_name || '', shownDay:dk(data.shown_day), nextDay:dk(data.next_day), reopensAt:data.reopens_at || null, boardAt:data.board_at || null,
-          upcomingDay:dk(data.upcoming_day), upcomingName:data.upcoming_name || '', upcomingIn:data.upcoming_in == null ? null : Number(data.upcoming_in), holidays:(data.holidays || []).map(x => ({ day:dk(x.day), name:x.name || '' })) } }; },
+        return { error:null, info:holInfoFromRow(data) }; },
+      async holidayHeadsupSeen(day){ const { error } = await sb.rpc('holiday_headsup_seen', { p_day:day }); return { error:err(error) }; },   // the heads-up line was drawn: SQL never shows this holiday's line to this person again
+      // Admin only (SQL admin_holiday_preview / admin_holiday_reset_seen, section 46): what the app would show at a pretend moment. Stores nothing.
+      async adminHolidayPreview(kind, pick, name){ const { data, error } = await sb.rpc('admin_holiday_preview', { p_kind:kind || 'card', p_pick:pick || null, p_name:name || null });
+        if(error || !data) return { error:err(error) || { message:'No preview returned.' }, info:null }; return { error:null, info:holInfoFromRow(data) }; },
+      async adminHolidayResetSeen(){ const { data, error } = await sb.rpc('admin_holiday_reset_seen'); return { error:err(error), removed:Number(data) || 0 }; },
       async homeBoard(day, board, symbol){ const { data, error } = await sb.rpc('home_board', { p_day:day, p_board:board, p_symbol:symbol || '' });
         return { error:err(error), trades:(data || []).map(r => ({ place:Number(r.place), id:r.id, userId:r.user_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, symbol:r.symbol || '', side:r.side || '',
           size:Number(r.size), entry:Number(r.entry_price), exit:Number(r.exit_price), risk:r.margin_risk == null ? null : Number(r.margin_risk), opened:r.opened_at, closed:r.closed_at,
@@ -7478,10 +7518,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const dkWeekend = k => { const w = dkParse(k).getUTCDay(); return w === 0 || w === 6; };
   // ---------- Market holidays ----------
   // The rule lives in SQL (section 45): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends. The browser only draws it:
-  // HOL.info = the answer of market_holiday_info() (memory only), HOL.map = { 'YYYY-MM-DD': 'Holiday name' } for the calendars and the day arrows.
+  // HOL.info = the answer of market_holiday_info() (memory only), HOL.map = { 'YYYY-MM-DD': 'Holiday name' } for the calendars and the day arrows. HOL.preview = the admin's Holiday Card Preview (section 46), drawn instead of HOL.info on Home / Stats.
   // SET THIS TO true IF YOU WANT THE SCOREBOARD (Home) AND CHARTS (Stats) HIDDEN WHILE THE HOLIDAY CARD IS SHOWING. false = the card sits on top and the previous board stays below it.
   const HOL_HIDE_BOARD = false;
-  const HOL = { info:null, map:{}, at:0, p:null, retry:0 };
+  const HOL = { info:null, map:{}, at:0, p:null, retry:0, until:0, timer:null, preview:null, acked:{} };   // info = the REAL status (import dialog, calendars); preview = an admin's pretend status (memory only); until = when info stops being valid; acked = heads-up lines already reported as seen
   const dkClosed = k => dkWeekend(k) || !!HOL.map[k];
   function dkPrevTrading(k){ do { k = dkAdd(k, -1); } while(dkClosed(k)); return k; }
   function dkNextTrading(k){ do { k = dkAdd(k, 1); } while(dkClosed(k)); return k; }
@@ -7503,7 +7543,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     'One day off never ruined a trading plan. Come back focused, patient and ready.', 'Consistency beats intensity. See you at the next open.', 'Protect your capital, protect your energy, and enjoy the day.'];
   function holCopy(name){ const m = HOL_COPY.find(x => x[0].test(name || '')); return m ? { title:m[1], msg:m[2] } : { title:name || 'Market holiday', msg:'The market is closed today. Rest up, reset, and enjoy the day. Time away from the screen is part of the process.' }; }
   function holCardHtml(i, compact){
-    const c = holCopy(i.holidayName), tip = HOL_TIPS[(i.holidayDay || '').split('-').reduce((a, x) => a + (+x || 0), 0) % HOL_TIPS.length];
+    const c = holCopy(i.holidayName), tip = HOL_TIPS[(i.tipSeed != null ? i.tipSeed : (i.holidayDay || '').split('-').reduce((a, x) => a + (+x || 0), 0)) % HOL_TIPS.length];
     const chip = (l, v) => '<span class="hol-chip">' + esc(l) + ' <b>' + esc(v) + '</b></span>';
     return '<div class="hol-card' + (compact ? ' compact' : '') + '" role="region" aria-label="Market holiday">' +
       '<span class="hol-spark a">' + HOL_STAR + '</span><span class="hol-spark b">' + HOL_STAR + '</span><span class="hol-spark c">' + HOL_STAR + '</span>' +
@@ -7512,30 +7552,48 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       '<div class="hol-facts">' + chip('Closed', homeLabel(i.holidayDay, true)) + chip('Trading resumes', holEt(i.reopensAt, { weekday:'long' }) + ' at 6:00 PM ET') +
       chip('Next board', holEt(i.boardAt, { weekday:'short', month:'short', day:'numeric' }) + ' at 6:00 PM ET') + '</div></div></div>';
   }
+  const holWhen = i => (i.upcomingIn === 1 ? 'tomorrow, ' : 'on ') + homeLabel(i.upcomingDay);
   function holNoteHtml(i){
-    const when = (i.upcomingIn === 1 ? 'tomorrow, ' : 'on ') + homeLabel(i.upcomingDay);
+    const when = holWhen(i);
     return '<div class="hol-note" role="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10.5h17"/></svg>' +
       '<span><b>Heads up:</b> markets are closed <b>' + esc(when) + '</b> for <b>' + esc(i.upcomingName) + '</b>.</span></div>';
   }
+  const holView = () => current() ? (HOL.preview || HOL.info) : null;   // what Home / Stats draw: the admin's preview when there is one, else the real status
+  const HOL_PREV_BAR = '<div class="hol-prev" role="status"><span class="hol-prev-b">Preview</span><span class="hol-prev-t">Only you can see this. Nothing is saved.</span><button type="button" class="hol-prev-x" data-hol="stop">Stop preview</button></div>';
   function holRender(){
     const hb = $('#hm-hol'), sb = $('#st-hol'); if(!hb || !sb) return;
-    const i = current() ? HOL.info : null, put = (box, html) => { if(box._k !== html){ box._k = html; box.innerHTML = html; } };
+    const i = holView(), put = (box, html) => { if(box._k !== html){ box._k = html; box.innerHTML = html; } };
     const homeNow = !HOME.day || HOME.day === HOME.latest, stNow = !STATS.day || STATS.day === STATS.latest;   // the card is about right now: not shown while looking at an older day
-    const draw = (now, compact) => !i || !now ? '' : i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : '';
+    const draw = (now, compact) => { if(!i || !now) return ''; const body = i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : ''; return body ? (i.preview ? HOL_PREV_BAR : '') + body : ''; };
     put(hb, draw(homeNow, false)); put(sb, draw(stNow, true));
     $('#page-home').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && homeNow);
     $('#page-stats').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && stNow);
+    // The heads-up line shows ONCE per holiday per person: the first time it is really drawn on a visible page, tell SQL (one tiny call), and SQL leaves it out from then on.
+    if(i && !i.preview && !i.closed && i.upcomingDay && !HOL.acked[i.upcomingDay] && ((homeNow && !$('#page-home').hidden) || (stNow && !$('#page-stats').hidden))){
+      HOL.acked[i.upcomingDay] = 1; Backend.holidayHeadsupSeen(i.upcomingDay);
+    }
+  }
+  // The answer cannot change before info.validUntil (SQL section 47: the next midnight ET, or sooner when a holiday closure starts / ends): no call before then, and ONE timer for it (no polling, note B).
+  function holSchedule(){
+    clearTimeout(HOL.timer); HOL.timer = null;
+    const ms = HOL.until - Date.now(); if(!(ms > 0)) return;
+    HOL.timer = setTimeout(() => {
+      HOL.timer = null;
+      if(!current()) return;
+      if(!$('#page-home').hidden || !$('#page-stats').hidden) holLoad(true); else HOL.until = 0;   // nobody is looking: the next time Home or Stats opens it asks again
+    }, Math.min(ms + Math.random() * 20000, 2147000000));   // a little jitter so every phone does not ask in the same second
   }
   async function holLoad(force){
-    if(!current() || !Backend.ready){ HOL.info = null; HOL.map = {}; holRender(); return null; }
-    if(!force && HOL.info && Date.now() - HOL.at < 20000) return HOL.info;
+    if(!current() || !Backend.ready){ HOL.info = null; HOL.map = {}; HOL.until = 0; HOL.preview = null; HOL.acked = {}; clearTimeout(HOL.timer); holRender(); return null; }
+    if(!force && HOL.info && Date.now() < HOL.until) return HOL.info;
     if(!force && Date.now() < HOL.retry) return HOL.info;
     if(HOL.p) return HOL.p;
     HOL.p = (async () => { try{
       const r = await Backend.marketHolidayInfo();
-      if(r.error || !r.info){ HOL.retry = Date.now() + 600000; return HOL.info; }   // e.g. the SQL section 45 is not installed yet: weekends still work, try again in 10 minutes
+      if(r.error || !r.info){ HOL.retry = Date.now() + 600000; return HOL.info; }   // e.g. the SQL section 46 is not installed yet: weekends still work, try again in 10 minutes
       const was = HOL.info; HOL.info = r.info; HOL.at = Date.now(); HOL.map = {}; r.info.holidays.forEach(x => { if(x.day) HOL.map[x.day] = x.name; });
-      holRender();
+      const vu = r.info.validUntil ? Date.parse(r.info.validUntil) : NaN; HOL.until = vu > Date.now() ? vu : Date.now() + (vu > 0 ? 15000 + Math.random() * 15000 : 300000);   // no valid_until (older SQL): keep the answer 5 minutes; a valid_until already past means this phone's clock runs ahead of the server: ask again in about 20 seconds
+      holSchedule(); holRender();
       if(was && (was.closed !== r.info.closed || was.holidayDay !== r.info.holidayDay)){ if(!$('#page-home').hidden) loadHome(true); if(!$('#page-stats').hidden) loadStats(true); }   // the market just closed or reopened
       return r.info;
     } finally { HOL.p = null; } })();
@@ -7549,7 +7607,42 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     return null;
   }
   $('#hm-date')._calRules = holCalRule; $('#st-date')._calRules = holCalRule;
-  setInterval(() => { if(current() && (!$('#page-home').hidden || !$('#page-stats').hidden)) holLoad(true); }, 60000);
+  // ----- Holiday Card Preview (Settings -> Admin tools, admins only; SQL admin_holiday_preview, section 46). Draws a pretend Holiday card / heads-up line on Home + Stats for this admin only. Nothing is saved. -----
+  const HOL_PICKS = [['', 'Random holiday'], ['New Year', 'New Year\u2019s Day'], ['Martin Luther', 'Martin Luther King Jr. Day'], ['Presidents', 'Presidents\u2019 Day'], ['Good Friday', 'Good Friday'], ['Memorial', 'Memorial Day'],
+    ['Juneteenth', 'Juneteenth'], ['Independence', 'Independence Day'], ['Labor', 'Labor Day'], ['Thanksgiving', 'Thanksgiving Day'], ['Christmas', 'Christmas Day']];
+  function holPreviewRedraw(){
+    holRender();
+    if(HOME._sa && (!HOME.day || HOME.day === HOME.latest)) homeSub(HOME._sa[0], HOME._sa[1]);   // the line under the Home board mentions the holiday too
+    const el = $('#hol-status'), p = HOL.preview; if(!el) return;
+    ['#hol-stop', '#hol-view-home', '#hol-view-stats'].forEach(q => { $(q).disabled = !p; });
+    el.textContent = !p ? 'No preview showing.'
+      : p.closed ? 'Showing the ' + p.holidayName + ' card (' + homeLabel(p.holidayDay) + ') on Home and Stats' + (p.picked && p.picked !== p.holidayName ? ', using the real ' + p.picked + ' dates' : '') + '. Only you can see it.'
+      : 'Showing the heads-up line for ' + p.upcomingName + ', ' + holWhen(p) + ', on Home and Stats' + (p.picked && p.picked !== p.upcomingName ? ', using the real ' + p.picked + ' dates' : '') + '. Only you can see it.';
+  }
+  function holPreviewStop(){ HOL.preview = null; holPreviewRedraw(); }
+  [$('#hm-hol'), $('#st-hol')].forEach(b => b.addEventListener('click', e => { if(e.target.closest('[data-hol="stop"]')) holPreviewStop(); }));
+  if($('#hol-card')){
+    $('#hol-pick').innerHTML = HOL_PICKS.map(x => '<option value="' + esc(x[0]) + '">' + esc(x[1]) + '</option>').join('');
+    let busy = false;
+    $('#hol-go').addEventListener('click', async () => {
+      if(busy) return; busy = true; formError('hol-error', ''); const b = $('#hol-go'); b.disabled = true; b.textContent = 'Generating\u2026';
+      const r = await Backend.adminHolidayPreview($('#hol-kind').value, $('#hol-pick').value, $('#hol-name').value.trim());
+      b.disabled = false; b.textContent = 'Generate Preview'; busy = false;
+      if(r.error || !r.info){ formError('hol-error', r.error ? r.error.message : 'No preview came back.', 'Can\u2019t generate'); return; }
+      r.info.tipSeed = Math.floor(Math.random() * HOL_TIPS.length);   // a random encouragement line too
+      HOL.preview = r.info; holPreviewRedraw();
+    });
+    $('#hol-stop').addEventListener('click', holPreviewStop);
+    $('#hol-view-home').addEventListener('click', () => showPage('home'));
+    $('#hol-view-stats').addEventListener('click', () => showPage('stats'));
+    $('#hol-reset').addEventListener('click', async () => {
+      formError('hol-error', ''); const b = $('#hol-reset'); b.disabled = true;
+      const r = await Backend.adminHolidayResetSeen(); b.disabled = false;
+      if(r.error) return formError('hol-error', r.error.message, 'Can\u2019t reset');
+      HOL.acked = {}; HOL.until = 0;   // the next time Home or Stats opens it asks SQL again, so a real heads-up line comes back
+      $('#hol-status').textContent = r.removed ? 'Forgot ' + r.removed + (r.removed === 1 ? ' heads-up flag.' : ' heads-up flags.') + ' A real heads-up line shows again the next time you open Home or Stats within 7 days of a holiday.' : 'Nothing to reset: your account has not seen any heads-up line yet.';
+    });
+  }
   function homeRecentDays(n, latest){ const out = []; let k = latest; for(let i = 0; i < n; i++){ out.push(k); k = dkPrevTrading(k); } return out; }   // used by the test-data generator
   const homeLabel = (k, long) => dkParse(k).toLocaleDateString('en', long ? { weekday:'long', month:'long', day:'numeric', year:'numeric', timeZone:'UTC' } : { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
 
@@ -7782,11 +7875,12 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     sel.value = HOME.symbol;
   }
   function homeSub(count, span){   // span = highest place shown; larger than count when a deleted trade left its number empty
+    HOME._sa = [count, span];
     const best = HOME.board === 'best', sym = HOME.symbol ? HOME.symbol + ' ' : '', gap = count && span > count;
     let t = 'Trading day ' + homeLabel(HOME.day, true) + ', closed 5:00 PM ET. ';
     if(count) t += 'Showing the ' + (count === 1 ? 'only ' + sym + (best ? 'winning trade' : 'losing trade') : (count < HOME_TOP && !gap ? count : 'top ' + (gap ? span : count)) + ' ' + (best ? 'best ' : 'worst ') + sym + 'trades') + ', ranked by ' + (best ? 'biggest gain' : 'biggest loss') + ' in points' + (gap ? ' (a deleted trade keeps its place empty)' : '') + '. ';
     if(HOME.day === HOME.latest){
-      const hi = HOL.info && HOL.info.closed ? HOL.info : null;
+      const hv = holView(), hi = hv && hv.closed ? hv : null;   // the admin's preview counts here too
       t += hi ? 'Markets are closed for ' + hi.holidayName + '. This board stays up until the next trading day ends: the new board opens ' + holEt(hi.boardAt, { weekday:'long' }) + ' at 6:00 PM ET.'
               : 'Import your trades by 5:55 PM ET. The board updates at 6:00 PM ET each trading day.';
     }
