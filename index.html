@@ -89,7 +89,7 @@ Every change must keep that move cheap:
    until Monday 6:00 PM ET). That rule exists once, in SQL (trading_day_of, home_latest_day). Point values live in the futures_contracts table and must
    match SYM_CAT in this file (point value and default risk). A symbol missing from that table is not ranked. Best = winners by biggest positive points, Worst = losers by biggest negative
    points (ties: R:R). The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Holidays are not modelled.
-16. LIKES (SQL section 23): Home cards show a thumbs up (Best) or step-up "lock in" (Worst) chip with a count, double tap likes; profiles show thumbs-up / lock-in / profile-like totals and a heart to like a profile. Own trades and profiles cannot be liked.
+16. LIKES (SQL section 23): Home cards show a FLAME (Best) or crosshair "lock in" (Worst) chip with a count, double tap likes (the words in the UI are "Flame" and "Lock in"; the SQL names stay thumbs up / lock-in); profiles show flame / lock-in / profile-like totals, each icon in a tinted ring. Colors = --lk-up (orange) / --lk-lock (cyan) / --lk-heart (pink), set per theme, never green or red and a heart to like a profile. Own trades and profiles cannot be liked.
 17. NOTIFICATIONS PAGE (SQL section 25): cards for Best likes (thumbs up on my winning trades), Worst likes (lock-ins / step-it-up on my losing trades), profile likes, new followers,
    trades logged by people I follow (only trades logged after I followed), my own board places (#1 to #25 on a symbol's Best / Worst board, from the moment the board is shown) and top 3
    board finishes by people I follow (boards shown after I followed them). SQL builds the feed from rows that already exist (trade_likes, profile_likes, follows, trades), so a like that is taken back
@@ -178,7 +178,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    Existing accounts are not asked. Keep the Privacy Policy in step: it should say the birth date is checked once and not kept.
 31. SETTINGS PAGE LAYOUT (page-settings): cards are grouped under small headings, in this order: Preferences (Theme [phone only], Time Zone & Clock), Notifications, Privacy & Safety (Hide from search,
    Blocked Users), Legal & Support (Terms, Privacy, Contact support, Report a problem, version), Admin tools (#adm-group: Test Data Generator + Welcome Tour preview, shown ONLY to admins by refreshGenerator()),
-   Danger zone (Delete Account), and the Account card at the VERY BOTTOM so Log out [phone only] is the last thing on the page (email read-only, Change password [phone only], Download my data, Log out of all devices, Log out).
+   Danger zone (Delete Account), and the Account card at the VERY BOTTOM so Log out [phone only] is the last thing on the page (no email shown, Edit Profile has it; Change password [phone only], Download my data, Log out of all devices, Log out).
    Keep Account last. A new card goes under the heading it belongs to. SCOREBOARD SYMBOLS are NOT in Settings any more: they are a pop up window (#symOverlay, ids #sp-list / #sp-reset kept) opened from Home by #mt-syms (phone top bar,
    top right, shown on Home only, see mobileBar) and #hm-syms (website, in the Home banner; hidden on phones). symSave() sets SYM_DIRTY and the window's close hook redraws Home + Stats once.
    NOTIFICATION SWITCHES (SQL section 42): five switches (Likes, New followers, Trades by people I follow, My scoreboard places, Top 3 by people I follow), all ON by default, saved on the account (table notification_prefs).
@@ -1268,7 +1268,12 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .pf-stats.pf-likes{ margin-top:12px; }
   .pf-lk span{ display:inline-flex; align-items:center; justify-content:center; gap:6px; margin-top:9px; }
   .pf-lk svg{ width:22px; height:22px; flex:none; }
-  .pf-lk.up svg{ color:var(--gain); } .pf-lk.step svg{ color:#F59E0B; } .pf-lk.heart svg{ color:#F472B6; }
+  /* Like icon colors, one set per theme (no green or red: those mean profit and loss). Flame = orange, Crosshair / Lock in = cyan, Heart = pink. */
+  :root{ --lk-up:#FF8A3D; --lk-lock:#22D3EE; --lk-heart:#F472B6; }
+  html[data-theme="light"]{ --lk-up:#EA580C; --lk-lock:#0891B2; --lk-heart:#DB2777; }
+  .pf-lk.up{ --lkc:var(--lk-up); } .pf-lk.step{ --lkc:var(--lk-lock); } .pf-lk.heart{ --lkc:var(--lk-heart); }
+  .pf-lk svg{ box-sizing:content-box; padding:9px; border-radius:50%; color:var(--lkc); background:color-mix(in srgb, var(--lkc) 14%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--lkc) 38%, transparent); }
+  @media (max-width:700px){ .pf-lk svg{ padding:7px; } }
   .pf-btn.like svg{ width:17px; height:17px; flex:none; } .pf-btn.like.on{ color:#F472B6; border-color:#F472B6; } .pf-btn.like.on svg{ fill:currentColor; fill-opacity:.3; }
   .pf-actions .pf-btn + .pf-btn, .pf-actions .pf-btn + .pf-btn{ margin-left:8px; }
   /* Profile actions: Like, Follow and the ... (Report / Block) button wrap on very narrow phones instead of overflowing */
@@ -1737,6 +1742,7 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .ht-col h4{ margin:0 0 6px; font:800 13px var(--font-sans); letter-spacing:.04em; text-transform:uppercase; }
   .ht-col.yes h4{ color:var(--gain); } .ht-col.no h4{ color:var(--loss); }
   .ht-col ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; font-size:13px; }
+  .ht-ic{ display:inline-flex; vertical-align:-3px; } .ht-ic svg{ width:16px; height:16px; }
   .ht-note{ margin:12px 2px 6px; font-size:12.5px; color:var(--text-muted); }
   @media (max-width:520px){ .ht-cols{ grid-template-columns:1fr; } }
   .hm-step, .hm-latest{ height:46px; border-radius:14px; border:1px solid var(--line-strong); background:var(--surface-2); color:var(--text); cursor:pointer; font-family:var(--font-sans); }
@@ -1774,14 +1780,14 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .hm-like svg{ width:15px; height:15px; flex:none; }
   .hm-like:hover{ border-color:var(--text-dim); }
   .hm-like:focus-visible{ outline:2px solid var(--pc); outline-offset:2px; }
-  .hm-grid.best .hm-like.on{ color:var(--gain); border-color:var(--gain); background:var(--gain-dim); }
-  .hm-grid.worst .hm-like.on{ color:#F59E0B; border-color:#F59E0B; background:color-mix(in srgb, #F59E0B 14%, transparent); }
+  .hm-grid.best .hm-like.on{ color:var(--lk-up); border-color:var(--lk-up); background:color-mix(in srgb, var(--lk-up) 14%, transparent); }
+  .hm-grid.worst .hm-like.on{ color:var(--lk-lock); border-color:var(--lk-lock); background:color-mix(in srgb, var(--lk-lock) 14%, transparent); }
   .hm-like.on svg{ fill:currentColor; fill-opacity:.25; }
   .hm-grid.best .hm-card.r1 .hm-like, .hm-grid.best .hm-card.r2 .hm-like, .hm-grid.best .hm-card.r3 .hm-like{ color:var(--mi); border-color:color-mix(in srgb, var(--mi) 45%, transparent); }
   .hm-grid.best .hm-card.r1 .hm-like.on, .hm-grid.best .hm-card.r2 .hm-like.on, .hm-grid.best .hm-card.r3 .hm-like.on{ color:var(--mi); background:rgba(255,255,255,.5); border-color:var(--mi); }
   .hm-card .hm-burst{ position:absolute; left:50%; top:50%; z-index:6; width:64px; height:64px; margin:-32px 0 0 -32px; pointer-events:none; display:grid; place-items:center; animation:hmBurst .75s ease-out forwards; }
   .hm-burst svg{ width:56px; height:56px; stroke-width:1.8; fill:currentColor; fill-opacity:.3; filter:drop-shadow(0 4px 10px rgba(0,0,0,.35)); }
-  .hm-grid.best .hm-burst{ color:var(--gain); } .hm-grid.worst .hm-burst{ color:#F59E0B; }
+  .hm-grid.best .hm-burst{ color:var(--lk-up); } .hm-grid.worst .hm-burst{ color:var(--lk-lock); }
   .hm-grid.best .hm-card.r1 .hm-burst, .hm-grid.best .hm-card.r2 .hm-burst, .hm-grid.best .hm-card.r3 .hm-burst{ color:var(--mi); }
   @keyframes hmBurst{ 0%{ opacity:0; scale:.3; } 25%{ opacity:1; scale:1.25; } 60%{ opacity:1; scale:1; } 100%{ opacity:0; scale:1.35; translate:0 -22px; } }
   .hm-who .hm-meta b{ font-size:inherit; font-weight:800; overflow:visible; text-overflow:clip; }
@@ -1906,9 +1912,6 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .sp-group{ margin:34px 2px 0; display:flex; align-items:center; gap:10px; font:800 12px var(--font-sans); letter-spacing:.09em; text-transform:uppercase; color:var(--text-muted); }
   #page-settings > .sp-group:first-of-type{ margin-top:6px; }
   .sp-group + .sp-card, .sp-group + .gen-card{ margin-top:10px; }
-  .sp-email{ margin-top:14px; display:flex; flex-direction:column; gap:3px; }
-  .sp-email span{ font:700 13px var(--font-sans); color:var(--text-muted); }
-  .sp-email b{ font:700 16px var(--font-sans); color:var(--text); overflow-wrap:anywhere; }
   .sp-note{ margin:6px 0 0; font-size:12.5px; line-height:1.45; color:var(--text-muted); }
   .sp-ver{ margin:14px 0 0; font:600 12px var(--font-mono); color:var(--text-muted); }
   #prv-card .tz-sw, #tz-card .tz-sw, #ka-card .tz-sw{ max-width:none; }
@@ -2222,8 +2225,8 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .pf-rec-meta{ margin-left:auto; font-size:12.5px; color:var(--text-muted); white-space:nowrap; }
   @media (max-width:600px){ .pf-rec-meta{ margin-left:0; width:100%; } .pf-pk{ flex-wrap:wrap; } .pf-pk-when{ margin-left:0; width:100%; padding-left:40px; } }
   @media (max-width:600px){ .pf-trophies{ grid-template-columns:1fr; } .pf-tr{ flex-direction:row; flex-wrap:wrap; justify-content:flex-start; text-align:left; padding:14px; } .pf-tr.empty{ min-height:0; } .pf-glance{ padding:14px 12px; } .pf-glance .pf-stat b{ font-size:17px; } }
-  .tt-like.on{ color:var(--gain); border-color:color-mix(in srgb, var(--gain) 55%, transparent); background:var(--gain-dim); }
-  .tt-like.step.on{ color:var(--indigo); border-color:color-mix(in srgb, var(--indigo) 55%, transparent); background:color-mix(in srgb, var(--indigo) 14%, transparent); }
+  .tt-like.on{ color:var(--lk-up); border-color:color-mix(in srgb, var(--lk-up) 55%, transparent); background:color-mix(in srgb, var(--lk-up) 14%, transparent); }
+  .tt-like.step.on{ color:var(--lk-lock); border-color:color-mix(in srgb, var(--lk-lock) 55%, transparent); background:color-mix(in srgb, var(--lk-lock) 14%, transparent); }
   /* Trade details: one panel, rows of two cells (Symbol/Side, Contracts/Duration, Opened/Closed) and a price row that reads Entry -> Exit */
   .td-panel{ margin:12px 0 4px; border-radius:18px; overflow:hidden; border:1px solid var(--line-strong); background:var(--surface-2); }
   html:not([data-theme="light"]) .td-panel{ box-shadow:0 18px 40px -30px var(--c); }
@@ -2352,7 +2355,7 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   }
   .nt-card:focus-visible{ outline:2px solid var(--nc); outline-offset:-3px; }
   .has-act .nt-card{ padding-right:8px; }
-  .ntk-best{ --nc:var(--gain); } .ntk-worst{ --nc:var(--loss); } .ntk-heart{ --nc:#F06292; } .ntk-follow{ --nc:var(--indigo); } .ntk-trade{ --nc:var(--gold-muted); }
+  .ntk-best{ --nc:var(--lk-up); } .ntk-worst{ --nc:var(--lk-lock); } .ntk-heart{ --nc:var(--lk-heart); } .ntk-follow{ --nc:var(--indigo); } .ntk-trade{ --nc:var(--gold-muted); }
   .ntk-place{ --nc:var(--gold-muted); } .ntk-top{ --nc:var(--indigo); }
   .nb-best{ --nc:var(--gain); } .nb-worst{ --nc:var(--loss); }   /* board cards take the colour of their board: green = Best, red = Worst */
   .nt-av{ --av:48px; position:relative; flex:none; width:var(--av); height:var(--av); }
@@ -2636,8 +2639,6 @@ html[data-theme="dark"] .pf-card{box-shadow:none}
 html[data-theme="dark"] .pf-cover{background:linear-gradient(135deg, color-mix(in srgb, var(--pc) 20%, var(--surface-3)), var(--surface-3))}
 html[data-theme="dark"] .pf-avatar{box-shadow:0 0 0 1px color-mix(in srgb, var(--pc) 55%, transparent)}
 html[data-theme="dark"] .pf-btn.primary{background:linear-gradient(160deg, #F2F2F2, var(--yellow) 55%, #F2F2F2)}
-html[data-theme="dark"] .pf-lk.step svg{color:#F2F2F2}
-html[data-theme="dark"] .pf-lk.heart svg{color:#F2F2F2}
 html[data-theme="dark"] .pf-btn.like.on{color:#F2F2F2;border-color:#F2F2F2}
 html[data-theme="dark"] .pf-dcard{box-shadow:none}
 html[data-theme="dark"] .pf-dhead{background:none}
@@ -2646,9 +2647,7 @@ html[data-theme="dark"] .sb-add button{background:linear-gradient(160deg, #F2F2F
 html[data-theme="dark"] .im-drop .im-ico{box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
 html[data-theme="dark"] .im-f input:focus,html[data-theme="dark"] .im-f textarea:focus{box-shadow:none}
 html[data-theme="dark"] .hm-card.r1 .hm-rank,html[data-theme="dark"] .hm-card.r2 .hm-rank,html[data-theme="dark"] .hm-card.r3 .hm-rank{box-shadow:none}
-html[data-theme="dark"] .hm-grid.worst .hm-like.on{color:#F2F2F2;border-color:#F2F2F2;background:color-mix(in srgb, #F2F2F2 14%, transparent)}
 html[data-theme="dark"] .hm-burst svg{filter:none}
-html[data-theme="dark"] .hm-grid.worst .hm-burst{color:#F2F2F2}
 html[data-theme="dark"] .hm-bt.top{box-shadow:0 0 0 1px color-mix(in srgb, var(--gold-muted) 25%, transparent)}
 html[data-theme="dark"] .hm-grid.best .hm-card.r1{box-shadow:0 0 0 2px rgba(255,236,160,.75)}
 html[data-theme="dark"] .hm-grid.best .hm-card.r2{box-shadow:0 0 0 1px rgba(255,255,255,.4)}
@@ -2673,7 +2672,6 @@ html[data-theme="dark"] .tt-tile{background:var(--surface-2)}
 html[data-theme="dark"] .tt-why.entry{background:var(--surface-2)}
 html[data-theme="dark"] .td-r.px{background:none}
 html[data-theme="dark"] .ptr{box-shadow:none}
-html[data-theme="dark"] .ntk-heart{--nc:#F2F2F2}
 /* Dark: every accent colour is near-white, so the white icon inside a Notifications badge vanished. Black icon on the light badge, slightly bolder. */
 html[data-theme="dark"] .nt-row .nt-av .nt-ic{ color:#000; }
 html[data-theme="dark"] .nt-row .nt-av .nt-ic svg{ width:13px; height:13px; stroke-width:2.6; }
@@ -2771,7 +2769,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   .hm-grid.worst .hm-card.w1 .hm-pts{ font-size:26px; }
 }
 html[data-theme="dark"] .im-slot.worst.used, html[data-theme="dark"] .im-badge.worst{ color:var(--text-muted); background:rgba(255,255,255,.08); }
-html[data-theme="dark"] .ntk-worst, html[data-theme="dark"] .nb-worst{ --nc:var(--text-muted); }
+html[data-theme="dark"] .nb-worst{ --nc:var(--text-muted); }
 html[data-theme="dark"] .tt-medal.rw, html[data-theme="dark"] .tt-rk.rw{ --m:var(--text-muted); }
 
 /* ---------- Theme switch: three options (Blue / Light / Dark) ---------- */
@@ -3276,7 +3274,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         </div>
         <div class="gen-mine">
           <h5>Notifications For Me</h5>
-          <p class="gen-sub">Creates 14 new fake traders and gives your own account one of every Notifications card, so you can press each one and check the window it opens: thumbs ups on your winning trades and step-it-ups on your losing ones (a crowd, two people and a single person), profile likes and new followers on three different days (a crowd, one person with a Follow back button, two people), new trades from 4 traders you now follow, your own #1 board places and their Top 3 finishes. Press it again to stack more cards (the list then pages with Load more). &quot;Remove All Generated&quot; clears all of it: the fake people, their likes and follows, and the trades this put on your account.</p>
+          <p class="gen-sub">Creates 14 new fake traders and gives your own account one of every Notifications card, so you can press each one and check the window it opens: flames on your winning trades and lock-ins on your losing ones (a crowd, two people and a single person), profile likes and new followers on three different days (a crowd, one person with a Follow back button, two people), new trades from 4 traders you now follow, your own #1 board places and their Top 3 finishes. Press it again to stack more cards (the list then pages with Load more). &quot;Remove All Generated&quot; clears all of it: the fake people, their likes and follows, and the trades this put on your account.</p>
           <div class="gen-actions"><button type="button" class="stamp-btn" id="gen-nt-go">Generate Notifications</button></div>
         </div>
       </div>
@@ -3299,8 +3297,6 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       <h3 class="sp-group">Account</h3>
       <div class="sp-card" id="acct-card">
         <div class="sp-head"><div><h4>Account</h4></div></div>
-        <div class="sp-email"><span>Email</span><b id="acct-email">&nbsp;</b></div>
-        <p class="sp-note">This is the email you signed up with. It can&rsquo;t be changed.</p>
         <div class="acct-btns">
           <button type="button" class="stamp-btn secondary acct-phone" onclick="window.__openChangePasswordModal()">Change password</button>
           <button type="button" class="stamp-btn secondary" id="acct-export">Download my data</button>
@@ -3558,6 +3554,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
           <li>Delete a trade while it is on the scoreboard.</li>
         </ul></div>
       </div>
+      <div class="ht-tip" style="margin:16px 0 0"><b>Cheer each other on</b> Tap the <span class="ht-ic" style="color:var(--lk-up)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z"/></svg></span> flame on a winning trade to say well done. Tap the <span class="ht-ic" style="color:var(--lk-lock)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r=".5"/></svg></span> crosshair on a losing trade to tell that trader to lock in and keep going. Double-tap a card to do either.</div>
       <p class="ht-note">A trade must open and close while the market is open, on the current trading day. Logging closes at 5:55 PM ET and a new day opens at 6:00 PM ET.</p>
     </div>
     <div class="pm-actions"><button type="button" class="stamp-btn" id="htClose">Got it</button></div>
@@ -5161,7 +5158,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       pfMoment('bigWin', 'best', 'Biggest win', LK_SVG(ST_SIDES.long.ico), x.bigWin, 'No winning trade yet.') +
       pfMoment('bigLoss', 'worst', 'Biggest loss', LK_SVG(ST_SIDES.short.ico), x.bigLoss, 'No losing trade yet.') +
       pfMoment('liked', likedWin ? 'best' : 'worst', 'Most liked trade', likedWin ? LK_UP : LK_STEP, L, 'No likes on a trade yet.',
-        L ? '<div class="pf-bd-count"><b>' + fmtCount(L.likes) + '</b><span>' + (likedWin ? (L.likes === 1 ? 'Like' : 'Likes') : (L.likes === 1 ? 'Lock-in' : 'Lock-ins')) + '</span></div>' : '') + '</div></div>';
+        L ? '<div class="pf-bd-count"><b>' + fmtCount(L.likes) + '</b><span>' + (likedWin ? (L.likes === 1 ? 'Flame' : 'Flames') : (L.likes === 1 ? 'Lock-in' : 'Lock-ins')) + '</span></div>' : '') + '</div></div>';
     const rec = pfRecList(x), seg = (k, l) => '<button type="button" class="pf-chipbtn' + (pfRec === k ? ' on' : '') + '" data-pfrec="' + k + '" aria-pressed="' + (pfRec === k) + '">' + l + '</button>';
     const recent = '<div class="pf-sec"><div class="pf-sec-top"><h4>Last 5 board finishes</h4><div class="pf-seg" role="group" aria-label="Filter finishes">' + seg('all', 'All') + seg('best', 'Winners') + seg('worst', 'Losers') + '</div></div>' + (rec.length ? '<div class="pf-rec">' + rec.map((h, i) => {
       const win = h.bestPlace >= 1 && h.bestPlace <= 25, place = win ? h.bestPlace : h.worstPlace;
@@ -5231,7 +5228,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         '<button type="button" class="pf-stat" data-pf="following" aria-label="View following"><b>' + fmtCount(p.following) + '</b><span>Following</span></button>' +
       '</div>' +
       '<div class="pf-stats pf-likes">' +
-        '<div class="pf-stat pf-lk up" role="img" title="Thumbs up" aria-label="' + p.tradeUpLikes + ' thumbs up on winning trades"><b>' + fmtCount(p.tradeUpLikes) + '</b><span aria-hidden="true">' + LK_UP + '</span></div>' +
+        '<div class="pf-stat pf-lk up" role="img" title="Flames" aria-label="' + p.tradeUpLikes + ' flames on winning trades"><b>' + fmtCount(p.tradeUpLikes) + '</b><span aria-hidden="true">' + LK_UP + '</span></div>' +
         '<div class="pf-stat pf-lk step" role="img" title="Lock-ins" aria-label="' + p.tradeLockins + ' lock-ins on losing trades"><b>' + fmtCount(p.tradeLockins) + '</b><span aria-hidden="true">' + LK_STEP + '</span></div>' +
         '<div class="pf-stat pf-lk heart" role="img" title="Profile likes" aria-label="' + p.profileLikes + ' profile likes"><b>' + fmtCount(p.profileLikes) + '</b><span aria-hidden="true">' + LK_HEART + '</span></div>' +
       '</div></div></div>' + pfExtrasHtml(p).replace('@@BOARDS@@', pfBoardsHtml(p.boards));
@@ -7430,17 +7427,17 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const homePts = n => imSign(n, fmtNum(Math.abs(n)));
   const homeRR = r => r == null ? '\u2014' : '1:' + (r < 0 ? '-' : '') + fmtNum(Math.abs(r));      // no plus sign when positive: green already says it
   const homeEmpty = (title, msg) => '<div class="empty-card"><span class="ec-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><b>' + esc(title) + '</b><small>' + esc(msg) + '</small></div>';
-  // Three different icons: thumbs up (Best trades), a step-up staircase = "step it up / lock in" (Worst trades), a heart (profiles).
+  // Three different icons: a flame (Best trades), a crosshair = "lock in" (Worst trades), a heart (profiles). Colors come from --lk-up / --lk-lock / --lk-heart (every theme).
   const LK_SVG = d => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
-  const LK_UP = LK_SVG('<path d="M7 10v11"/><path d="M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 7.5a2 2 0 0 1-1.9 1.4H4a2 2 0 0 1-2-2v-7.5a2 2 0 0 1 2-2h2.8a2 2 0 0 0 1.8-1.1L12 2.5a3.1 3.1 0 0 1 3 3.4z"/>');
-  const LK_STEP = LK_SVG('<path d="M3 21h5v-5h5v-5h5V7"/><path d="m14 9 4-4 4 4"/>');
+  const LK_UP = LK_SVG('<path d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z"/>');   // flame (Best trades)
+  const LK_STEP = LK_SVG('<circle cx="12" cy="12" r="8"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r=".5"/>');   // crosshair = "lock in" (Worst trades)
   const LK_HEART = LK_SVG('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>');
   function homeCardHtml(r, i){
     const nm = homeName(r), side = r.side === 'long' ? 'Long' : 'Short', best = HOME.board === 'best', me = current(), mine = !!(me && r.userId && r.userId === me.id), top = r.place >= 1 && r.place <= 3, medal = top ? (best ? ' r' : ' w') + r.place : '';
     const crown = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>', warn = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"/><path d="m7 11 5 6 5-6"/><path d="M6 21h12"/></svg>';
     const tag = !top ? '' : '<span class="hm-tag">' + (best ? (r.place === 1 ? crown + 'Best Trade' : r.place === 2 ? '2nd Best' : '3rd Best') : warn + (r.place === 1 ? 'Biggest Loss' : r.place === 2 ? '2nd Biggest' : '3rd Biggest')) + '</span>';
-    const chip = mine ? '' : '<button type="button" class="hm-like' + (r.liked ? ' on' : '') + '" aria-pressed="' + !!r.liked + '" title="' + (best ? 'Thumbs up' : 'Lock in, step it up') + '" aria-label="' + (best ? 'Thumbs up' : 'Lock in') + ', ' + r.likes + '">' + (best ? LK_UP : LK_STEP) + '<b>' + fmtCount(r.likes) + '</b></button>';
-    return '<div role="button" tabindex="0" class="hm-card' + medal + (mine ? ' mine' : '') + '" data-i="' + i + '" style="--i:' + i + '" aria-label="' + esc('Place ' + r.place + ', ' + nm + ', ' + r.symbol.toUpperCase() + ' ' + side + ', ' + homePts(r.points) + ' points. ' + (mine ? '' : 'Double tap to ' + (best ? 'give a thumbs up' : 'lock in') + '. ') + 'Open trade details') + '">' +
+    const chip = mine ? '' : '<button type="button" class="hm-like' + (r.liked ? ' on' : '') + '" aria-pressed="' + !!r.liked + '" title="' + (best ? 'Flame' : 'Lock in') + '" aria-label="' + (best ? 'Flame' : 'Lock in') + ', ' + r.likes + '">' + (best ? LK_UP : LK_STEP) + '<b>' + fmtCount(r.likes) + '</b></button>';
+    return '<div role="button" tabindex="0" class="hm-card' + medal + (mine ? ' mine' : '') + '" data-i="' + i + '" style="--i:' + i + '" aria-label="' + esc('Place ' + r.place + ', ' + nm + ', ' + r.symbol.toUpperCase() + ' ' + side + ', ' + homePts(r.points) + ' points. ' + (mine ? '' : 'Double tap to ' + (best ? 'give a flame' : 'lock in') + '. ') + 'Open trade details') + '">' +
       tag + (mine ? '<span class="hm-you">You</span>' : '') + '<span class="hm-rank">' + r.place + '</span>' +
       '<span class="hm-av"><img alt="" draggable="false" src="' + otAvatarUri(r.avatarSeed || r.username || '?') + '"></span>' +
       '<span class="hm-who"><b>' + esc(nm) + '</b><span class="hm-meta"><span class="hm-ms"><span class="im-badge ' + r.side + '">' + side + '</span><span class="hm-sy">' + esc(r.symbol.toUpperCase()) + '</span></span><span class="hm-sep">\u00B7</span><span class="hm-tp">Total P&amp;L <b class="hm-pnl ' + imCls(r.pnl) + '">' + pfMoney(r.pnl, true) + '</b></span></span></span>' +
@@ -7552,9 +7549,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
     }finally{ b.disabled = false; b.textContent = label; }
   });
-  // ---- Settings: Account email, Help & Support, Log out of all devices, Notification switches (SQL section 42) ----
+  // ---- Settings: Help & Support, Log out of all devices, Notification switches (SQL section 42) ----
   function spFill(){
-    const u = current(), em = $('#acct-email'); if(em) em.textContent = (u && u.email) || '\u00a0';
+    const u = current();
     const v = $('#sp-ver'); if(v) v.textContent = 'Nexus version ' + APP_VERSION;
     const hc = $('#help-card'); if(hc) hc.querySelectorAll('.acct-btns').forEach(b => { b.hidden = !SUPPORT_EMAIL; });   // no support address set yet: no dead buttons
   }
@@ -7568,7 +7565,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     async onConfirm(){ const r = await Backend.signOutEverywhere(); if(r.error) showToast('Couldn\u2019t log out', r.error.message, 'error'); } }));
   // One row per switch. key = the column in notification_prefs (SQL section 42). To add one: add a row here and in SQL.
   const NT_PREFS = [
-    { key:'likes',           label:'Likes',                       sub:'Thumbs ups and lock-ins on your trades, and likes on your profile.' },
+    { key:'likes',           label:'Likes',                       sub:'Flames and lock-ins on your trades, and likes on your profile.' },
     { key:'followers',       label:'New followers',               sub:'When someone starts following you.' },
     { key:'followed_trades', label:'Trades by people I follow',   sub:'When a trader you follow imports a trade.' },
     { key:'my_boards',       label:'My scoreboard places',        sub:'When one of your trades makes a Top 25 board.' },
@@ -7746,7 +7743,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   // The like button sits left of Follow in the trader banner: thumbs up on a winning trade, lock in (the step) on a losing one. Icon and count only; the words live in aria-label.
   function ttLikeHtml(t){
     if(t.isMe || !t.pnl || !t.id) return '';
-    const win = t.pnl > 0, word = win ? 'Thumbs up' : 'Lock in', n = t.likes || 0;
+    const win = t.pnl > 0, word = win ? 'Flame' : 'Lock in', n = t.likes || 0;
     return '<button type="button" class="tt-like' + (win ? '' : ' step') + (t.liked ? ' on' : '') + '" data-t="' + esc(t.id) + '" aria-pressed="' + !!t.liked + '" aria-label="' + word + ', ' + n + '" title="' + word + '">' + (win ? LK_UP : LK_STEP) + '<b>' + fmtCount(n) + '</b></button>';
   }
   function tdUserInner(t){
@@ -8339,12 +8336,12 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }, true);
   $('#ttClose').addEventListener('click', ttClose);
   $('#topOverlay').addEventListener('click', e => { if(TT.moved){ TT.moved = false; return; } if(e.target === e.currentTarget) ttClose(); });
-  // like (thumbs up on a winning trade)
+  // like (flame on a winning trade)
   const ttTradeById = id => TT.rows.find(x => String(x.id) === id) || (TD_FLAT.trade && String(TD_FLAT.trade.id) === id ? TD_FLAT.trade : null);
   async function ttLike(btn){
     const id = btn.dataset.t, t = ttTradeById(id); if(!t || TT.likeBusy.has(t.id)) return;
     if(t.isMe) return;
-    const word = t.pnl < 0 ? 'Lock in' : 'Thumbs up';
+    const word = t.pnl < 0 ? 'Lock in' : 'Flame';
     const want = !t.liked, paint = () => { document.querySelectorAll('.tt-like[data-t="' + id + '"]').forEach(k => { k.classList.toggle('on', !!t.liked); k.setAttribute('aria-pressed', String(!!t.liked)); k.setAttribute('aria-label', word + ', ' + t.likes); k.querySelector('b').textContent = fmtCount(t.likes); }); };
     TT.likeBusy.add(t.id); t.liked = want; t.likes = Math.max(0, t.likes + (want ? 1 : -1)); paint();
     if(want){ btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); }
@@ -8424,7 +8421,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const NT_FILTERS = { all:null, likes:['best_like', 'worst_like', 'profile_like'], followers:['follow'], trades:['followed_trade'], boards:['board_place', 'followed_board'] };
   const NT_EMPTY = {
     all:['No notifications yet', 'Likes, followers and board news show up here.'],
-    likes:['No likes yet', 'Thumbs ups, lock ins and profile likes show up here.'],
+    likes:['No likes yet', 'Flames, lock ins and profile likes show up here.'],
     followers:['No new followers yet', 'New followers show up here.'],
     trades:['Nothing from people you follow', 'Follow traders to see their new trades here.'],
     boards:['No board news yet', 'Daily board places show up here.']
@@ -8456,8 +8453,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function ntSentence(n, rich){
     const e = rich ? esc : (x => x), who = n.kind === 'board_place' ? (rich ? '<b>You</b>' : 'You') : ntWho(n, rich), many = n.count > 1, tr = e(ntTrade(n));
     switch(n.kind){
-      case 'best_like': return who + ' gave your ' + tr + ' a thumbs up';
-      case 'worst_like': return who + (many ? ' say' : ' says') + ' step it up on your ' + tr;
+      case 'best_like': return who + ' gave your ' + tr + ' a flame';
+      case 'worst_like': return who + (many ? ' say' : ' says') + ' lock in on your ' + tr;
       case 'profile_like': return who + ' liked your profile';
       case 'follow': return who + ' started following you';
       case 'board_place': case 'followed_board': return who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + e(n.day ? homeLabel(n.day) : 'the day');
@@ -8583,10 +8580,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function ntPlace(t){ return '<b class="tt-sym">' + esc(t.symbolRoot || ttRoot(t.symbol)) + '</b>' + ttPlaceMedal(t); }
   function ntLikesHtml(t){
     if(!t.likes || !t.pnl) return '';
-    const lose = t.pnl < 0; return '<p class="nt-likes">' + (lose ? LK_STEP : LK_UP) + fmtCount(t.likes) + (lose ? (t.likes === 1 ? ' lock-in' : ' lock-ins') : ' thumbs up') + '</p>';
+    const lose = t.pnl < 0; return '<p class="nt-likes">' + (lose ? LK_STEP : LK_UP) + fmtCount(t.likes) + (lose ? (t.likes === 1 ? ' lock-in' : ' lock-ins') : (t.likes === 1 ? ' flame' : ' flames')) + '</p>';
   }
   // The people behind a grouped card, newest first. The first newCnt of them are the ones that were new this visit.
-  const NT_PEOPLE_TITLE = { best_like:'Gave a thumbs up', worst_like:'Said step it up', profile_like:'Liked your profile', follow:'Started following you' };
+  const NT_PEOPLE_TITLE = { best_like:'Gave a flame', worst_like:'Said lock in', profile_like:'Liked your profile', follow:'Started following you' };
   function ntPeopleHtml(n, people){
     const rows = people.map((p, i) => {
       const nm = homeName(p), isNew = i < n.newCnt;
