@@ -222,12 +222,12 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    ("Trading day ..., closed 1:15 PM ET (early close)" and the next trading day's import deadline / board time), the Stats note, the import dialog (#im-rule-t, imShowDone, the replace window) and the test-data generator (no test trade after an early close).
    NOT DONE ON PURPOSE: the Stats bar chart still spans the full 23 hours (bars after an early close are simply empty); no heads-up line and no Holiday card for an early close (the holiday short sessions of section 49 have neither: they are trading days, only New Year's, Good Friday and Christmas show the Holiday card). They DO get a small greeting banner, see note 37.
 37. HOLIDAY GREETING BANNERS (drawing only: NO SQL, no extra call; script block "Holiday greeting banners" right above the Holiday card code, CSS .hb; the same code and CSS live in holiday_banners_preview.html, keep the two in step):
-   a small animated banner (HB = version 1, HB2 = version 2, hbHtml) on Home (big) and Stats (compact), ABOVE the Holiday card / heads-up line and the board. It shows on the Eastern calendar day of the holiday: the 7 short-session holidays of section 49,
+   a small animated banner (HB = version 1, HB2 = version 2, hbHtml) on the HOME page only; the Stats page gets no banner, just its Holiday card / heads-up line plus ONE plain hours line (holHoursLineHtml) on short-session / early-close days; the Holiday Card Preview of a full closure also shows that day's banner on Home; ABOVE the Holiday card / heads-up line and the board. It shows on the Eastern calendar day of the holiday: the 7 short-session holidays of section 49,
    the 3 full closures (shown above the Holiday card; HB_ON_CLOSED) and the 3 early-close eves Christmas Eve / Independence Day Eve / Day After Thanksgiving (HB_EVES; titles from hbTitle). The day and the real hours come from the holiday answer HOL already loads
    (HOL.map = full closures, HOL.early = short sessions + eves), matched to a look BY NAME in hbThemeFor(), so the banner changes at midnight ET with the next holiday refresh (valid_until, note 35). Its last line is the real hours (holHours) or "The market is closed today."
    TWO VERSIONS of every banner rotate by themselves: hbVersion(key, day, HB_VERSION) = (year + the holiday's place in HB) % 2, so everybody sees the same one on a given day and each holiday flips every year; HB_VERSION 'a' / 'b' forces one.
    To add a holiday or a third look: add the key to HB (and HB2), its name pattern to hbThemeFor() and a line to WHEN in the preview file. The banner has its own colors (same in every theme).
-   ADMIN: Settings -> Admin tools -> Holiday Card Preview -> Greeting Banner Preview draws any banner in any version on Home + Stats for that admin only (HOL.bprev, memory only; Stop Preview clears it).
+   ADMIN: Settings -> Admin tools -> Holiday Card Preview -> Greeting Banner Preview draws any banner in any version on Home (and the hours line on Stats) for that admin only (HOL.bprev, memory only; Stop Preview clears it).
 -->
 <html lang="en">
 <head>
@@ -1372,6 +1372,7 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .hb-art .tl{animation:hbt 1.8s ease-in-out infinite}.hb-art .pl{animation:hbp 2.6s ease-in-out infinite}.hb-art .spin{animation:hbs 16s linear infinite}
   @media(prefers-reduced-motion:reduce){.hb *{animation:none!important}.hb-fx i{opacity:.5}}
   .hb-pause *{animation-play-state:paused!important}
+  .hb-hrs{ margin:12px 0 4px; padding:10px 14px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--text-muted); font:500 13px/1.45 var(--font-sans, system-ui, sans-serif); } .hb-hrs b{ color:var(--text); font-weight:700; } #st-hol .hb-hrs + .hol-card, #st-hol .hb-hrs + .hol-note{ margin-top:10px; }
   #hm-hol .hb, #st-hol .hb{ margin:14px 0 4px; } #st-hol .hb{ margin-top:12px; } .hol-prev + .hb{ margin-top:10px; }
   #hm-hol .hb + .hol-card, #st-hol .hb + .hol-card, #hm-hol .hb + .hol-note, #st-hol .hb + .hol-note{ margin-top:10px; }
   /* Optional: HOL_HIDE_BOARD = true (script) hides the scoreboard / charts while the Holiday card is up */
@@ -3407,7 +3408,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         <div class="gen-actions"><button type="button" class="stamp-btn" id="hol-go">Generate Preview</button><button type="button" class="stamp-btn secondary" id="hol-view-home" disabled>View On Home</button><button type="button" class="stamp-btn secondary" id="hol-view-stats" disabled>View On Stats</button><button type="button" class="stamp-btn secondary" id="hol-stop" disabled>Stop Preview</button></div>
         <div class="gen-mine">
           <h5>Greeting Banner Preview</h5>
-          <p class="gen-sub">See any holiday greeting banner on Home and Stats, in version 1, version 2, or the one the app rotates to. Nothing is saved and only you can see it. Stop Preview above clears it.</p>
+          <p class="gen-sub">See any holiday greeting banner on Home (Stats shows just the hours line on short days), in version 1, version 2, or the one the app rotates to. Nothing is saved and only you can see it. Stop Preview above clears it.</p>
           <div class="gen-grid">
             <div class="im-f"><label for="hb-pick">Banner</label><select id="hb-pick" class="tz-select"></select></div>
             <div class="im-f"><label for="hb-ver">Version</label><select id="hb-ver" class="tz-select"><option value="rotate">Rotation (what the app picks)</option><option value="a">Version 1</option><option value="b">Version 2</option></select></div>
@@ -7630,13 +7631,13 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       art:'<g class="pl"><rect x="12" y="14" width="34" height="38" rx="3" fill="#f4ead2"/><ellipse cx="12" cy="33" rx="4" ry="19" fill="#d9c9a0"/><ellipse cx="46" cy="33" rx="4" ry="19" fill="#d9c9a0"/><path d="M20 24h18M20 31h18M20 38h12" stroke="#a99668" stroke-width="2" stroke-linecap="round"/></g><path d="M58 6C48 10 42 22 40 36l3 1c4-8 11-18 15-31z" fill="#fff"/><path d="M40 36l-4 12" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>' },
     goodfriday:{ label:'Good Friday', title:'Good Friday', tag:'Wishing you a peaceful day.', closed:true, bg:'linear-gradient(135deg,#1b1230,#3b2a63 60%,#6b4f8f)',
       fx:['tw', ['#e9dcff', '#fff'], 8, [2, 4]],
-      art:'<path d="M32 60V30" stroke="#6fbf73" stroke-width="3" stroke-linecap="round"/><path d="M32 52c-9 0-14-6-15-12 8 0 14 4 15 12z" fill="#4fa35a"/><path d="M32 46c8 0 13-5 14-10-7 0-13 3-14 10z" fill="#5fb869"/><g class="pl"><path d="M32 32c-9-2-12-10-11-20 5 2 9 6 11 11z" fill="#d89bff"/><path d="M32 32c9-2 12-10 11-20-5 2-9 6-11 11z" fill="#c47cf5"/><path d="M32 32c-6-4-6-13 0-22 6 9 6 18 0 22z" fill="#e8b8ff"/></g>' },
+      art:'<g class="pl"><path d="M26 40C20 30 22 18 31 11C31 22 33 31 36 40z" fill="#cdd8ee"/><path d="M10 46C16 47 24 46 31 42C38 39 44 40 49 36L51 38C50 44 43 50 34 51C25 52 17 50 10 46z" fill="#fff"/><path d="M31 42C27 30 34 16 49 9C47 22 44 33 41 41z" fill="#f4f7fd"/><circle cx="50" cy="33" r="5" fill="#fff"/><path d="M54.5 32l5 1.8-5 1.6z" fill="#f2a516"/><circle cx="51.6" cy="32" r=".9" fill="#1b2438"/></g><path d="M57 36c3 5 1 10-5 13" stroke="#6fbf73" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M58 41c3-1 5-3 5-5-3 0-5 2-5 5zM55 46c-3-1-5 0-6 2 3 1 5 0 6-2z" fill="#6fbf73"/>' + hbLight(10, 14, '#fff', 0) + hbLight(56, 14, '#ffe8c2', .9) + hbLight(6, 34, '#fff', 1.4) },
     memorial:{ label:'Memorial Day', title:'Memorial Day', tag:'Remembering and honoring those who gave their lives in service.', bg:'linear-gradient(135deg,#1b2a41,#324a5f 55%,#7a1f2b)',
       fx:['dn', ['#d62828', '#b71c1c', '#e04848'], 10, [6, 10], 'pt'],
       art:'<path d="M32 40v22" stroke="#3f7d3a" stroke-width="2.6" stroke-linecap="round"/><path d="M32 54c6-6 12-4 14-2-4 5-10 6-14 2z" fill="#3f7d3a"/><g fill="#d62828"><circle cx="32" cy="18" r="9"/><circle cx="42" cy="26" r="9"/><circle cx="38" cy="37" r="9"/><circle cx="26" cy="37" r="9"/><circle cx="22" cy="26" r="9"/></g><circle cx="32" cy="28" r="5.5" fill="#231f20"/><circle cx="32" cy="28" r="1.6" fill="#7a7a7a"/>' },
     juneteenth:{ label:'Juneteenth', title:'Happy Juneteenth', tag:'Celebrating freedom and new beginnings.', bg:'linear-gradient(135deg,#7a0f1f,#1f5d3a 60%,#c9961a)',
-      fx:['dn', ['#c8102e', '#f7c948', '#2e9e5b', '#fff'], 16, [6, 10], 'rb'],
-      art:'<g class="spin"><path d="' + hbRays(32, 32, 22, 29, 16, 0, 360) + '" stroke="#f7c948" stroke-width="2.4" stroke-linecap="round"/></g><circle cx="32" cy="32" r="18" fill="#c8102e" stroke="#f7c948" stroke-width="3"/><circle class="pl" cx="32" cy="32" r="8" fill="#f7c948"/>' },
+      fx:['dn', ['#c8102e', '#f7c948', '#2e9e5b', '#fff'], 16, [4, 7], 'cf'],
+      art:'<circle class="pl" cx="32" cy="32" r="28" fill="#ffd54a" opacity=".16"/><polygon class="pl" points="' + [0,1,2,3,4,5,6,7,8,9].map(i => { const r = i % 2 ? 8.4 : 21, a = (-90 + i * 36) * Math.PI / 180; return (32 + r * Math.cos(a)).toFixed(1) + ',' + (33 + r * Math.sin(a)).toFixed(1); }).join(' ') + '" fill="#ffd54a" stroke="#fff3c4" stroke-width="1.4" stroke-linejoin="round"/>' + hbLight(8, 12, '#fff', .2) + hbLight(57, 12, '#f7c948', .9) + hbLight(55, 54, '#fff', 1.4) + hbLight(8, 52, '#f7c948', .6) },
     july4:{ label:'Independence Day', title:'Happy Independence Day', tag:'Wishing you a happy and safe Fourth.', bg:'linear-gradient(135deg,#071333,#13296b 55%,#7a1226)',
       fx:['bu', ['#ff4d5e', '#fff', '#4da3ff', '#ffd54a', '#ff4d5e'], 5, [5, 5]],
       art:'<g class="spin"><path d="' + hbRays(32, 32, 11, 28, 12, 0, 360) + '" stroke="#ff4d5e" stroke-width="3" stroke-linecap="round"/><path d="' + hbRays(32, 32, 11, 24, 12, 15, 360) + '" stroke="#8ec5ff" stroke-width="2.4" stroke-linecap="round"/></g><circle cx="32" cy="32" r="5" fill="#fff"/>' },
@@ -7705,10 +7706,20 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     if(closedName ? !HB_ON_CLOSED : (!HB_EVES && /eve$|after thanksgiving/i.test(name))) return null;
     return { k:k, name:name, v:hbVersion(k, day, HB_VERSION), sub:closedName ? 'The market is closed today.' : holHoursSub(holHours(day)) };
   }
-  function holBannerHtml(compact){   // the admin's preview (HOL.bprev) wins over the real banner
-    if(!current()) return '';
-    const b = HOL.bprev || holBannerFor(holToday()); if(!b) return '';
+  function holPreviewBanner(){   // the admin's Holiday card preview (a full closure) gets the banner the real day would show above the card
+    const p = HOL.preview; if(!p || !p.closed || !HB_ON_CLOSED) return null;
+    const name = p.holidayName || '', k = hbThemeFor(name); if(!k) return null;
+    return { k:k, name:name, v:hbVersion(k, p.holidayDay || holToday(), HB_VERSION), sub:'The market is closed today.', closed:true };
+  }
+  function holBannerData(){ return current() ? (HOL.bprev || holPreviewBanner() || holBannerFor(holToday())) : null; }   // the admin's banner preview (HOL.bprev) wins, then the Holiday card preview, then the real banner
+  function holBannerHtml(compact){
+    const b = holBannerData(); if(!b) return '';
     return hbHtml(b.k, { title:hbTitle(b.k, b.name, b.v), sub:b.sub, v:b.v, compact:compact });
+  }
+  // Stats page: no banner, just ONE plain hours line on the days the market trades short (nothing on a full closure: the Holiday card says it)
+  function holHoursLineHtml(){
+    const b = holBannerData(); if(!b || b.closed || /closed today/i.test(b.sub || '')) return '';
+    return '<div class=\"hb-hrs\" role=\"note\"><b>' + hbEsc(hbTitle(b.k, b.name, b.v)) + '</b> ' + hbEsc(b.sub) + '</div>';
   }
   const HOL_ART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10.5h17"/><path d="M12 12.4l.95 2 2 .95-2 .95-.95 2-.95-2-2-.95 2-.95z" fill="currentColor" stroke-width="1"/></svg>';
   const HOL_STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.6 8.4L23 12l-8.4 2.6L12 23l-2.6-8.4L1 12l8.4-2.6z"/></svg>';
@@ -7748,7 +7759,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const hb = $('#hm-hol'), sb = $('#st-hol'); if(!hb || !sb) return;
     const i = holView(), put = (box, html) => { if(box._k !== html){ box._k = html; box.innerHTML = html; } };
     const homeNow = !HOME.day || HOME.day === HOME.latest, stNow = !STATS.day || STATS.day === STATS.latest;   // the card is about right now: not shown while looking at an older day
-    const draw = (now, compact) => { if(!now) return ''; const bn = holBannerHtml(compact), body = !i ? '' : i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : ''; return (bn || body) && ((i && i.preview) || HOL.bprev) ? HOL_PREV_BAR + bn + body : bn + body; };   // banner on top, then the Holiday card / heads-up line
+    const draw = (now, compact) => { if(!now) return ''; const bn = compact ? holHoursLineHtml() : holBannerHtml(false), body = !i ? '' : i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : ''; return (bn || body) && ((i && i.preview) || HOL.bprev) ? HOL_PREV_BAR + bn + body : bn + body; };   // banner on top, then the Holiday card / heads-up line
     put(hb, draw(homeNow, false)); put(sb, draw(stNow, true));
     $('#page-home').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && homeNow);
     $('#page-stats').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && stNow);
@@ -7802,7 +7813,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     el.textContent = !p ? 'No preview showing.'
       : p.closed ? 'Showing the ' + p.holidayName + ' card (' + homeLabel(p.holidayDay) + ') on Home and Stats' + (p.picked && p.picked !== p.holidayName ? ', using the real ' + p.picked + ' dates' : '') + '. Only you can see it.'
       : 'Showing the heads-up line for ' + p.upcomingName + ', ' + holWhen(p) + ', on Home and Stats' + (p.picked && p.picked !== p.upcomingName ? ', using the real ' + p.picked + ' dates' : '') + '. Only you can see it.';
-    if(HOL.bprev) el.textContent = (p ? el.textContent + ' ' : '') + 'Showing the ' + HOL.bprev.label + ' greeting banner (version ' + (HOL.bprev.v + 1) + ') on Home and Stats. Only you can see it.';
+    if(HOL.bprev) el.textContent = (p ? el.textContent + ' ' : '') + 'Showing the ' + HOL.bprev.label + ' greeting banner (version ' + (HOL.bprev.v + 1) + ') on Home' + (HOL.bprev.sub && !/closed today/i.test(HOL.bprev.sub) ? ' and its hours line on Stats' : '') + '. Only you can see it.';
   }
   function holPreviewStop(){ HOL.preview = null; HOL.bprev = null; holPreviewRedraw(); }
   [$('#hm-hol'), $('#st-hol')].forEach(b => b.addEventListener('click', e => { if(e.target.closest('[data-hol="stop"]')) holPreviewStop(); }));
