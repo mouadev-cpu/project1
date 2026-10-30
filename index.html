@@ -85,7 +85,7 @@ Every change must keep that move cheap:
    missing (SQL table deleted_ranked_trades remembers the empty place). A day whose board has opened is never re-ranked again (a trade logged after 5:55 PM ET is saved but unranked).
    Places are stored for ALL winners/losers, Home only shows 1 to 25. Future queries, e.g.
    select * from trades where trading_day = '2026-10-23' and best_place <= 3 order by best_place;
-   Trading day = Sunday 6 PM to Friday 5 PM Eastern, named after the day it ends; traders have until 5:55 PM ET to log a day's trades and Home switches to that day's board at 6:00 PM ET (Friday's day stays
+   Trading day = Sunday 6 PM to Friday 5 PM Eastern, named after the day it ends (early-close days end sooner and shift the 5:55 / 6:00 PM times, see note 36); traders have until 5:55 PM ET to log a day's trades and Home switches to that day's board at 6:00 PM ET (Friday's day stays
    until Monday 6:00 PM ET). That rule exists once, in SQL (trading_day_of, home_latest_day). Point values live in the futures_contracts table and must
    match SYM_CAT in this file (point value and default risk). A symbol missing from that table is not ranked. Best = winners by biggest positive points, Worst = losers by biggest negative
    points (ties: R:R). The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Market holidays: see note 35.
@@ -163,7 +163,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    permissions an app does not use). If a camera button is added: request the permission inside Device.pickFile's replacement BEFORE opening the camera, explain a refusal in one line, add the usage text to the iOS Info.plist (NSCameraUsageDescription)
    and the Android manifest, and add Settings -> Permissions (camera status plus a button that opens the phone's app settings) so people can find and change it later.
 28. PHONE SHELL (screens up to 700px, CSS block "Phone layout" at the end of the style): the sidebar becomes a fixed BOTTOM bar (Home, Stats, +, Notifications, Profile; icons only, a dot marks the page), and a fixed top bar
-   (#mtop) shows the page title (mobileBar() in showPage; Profile has a Settings gear at the right, Settings a back arrow to Profile). The .page-head banners are hidden on phones (Home keeps its "my day" tiles) and stay on the website.
+   (#mtop) shows the page title (mobileBar() in showPage; Profile has a Settings gear at the right, Settings a back arrow to Profile). Home has the How To button (#mt-howto) in the LEFT corner and the Symbols button (#mt-syms) in the right corner; the Home bar's own #hm-howto is hidden on phones and the first-login spotlight follows whichever one is visible (tourBtn()). The .page-head banners are hidden on phones, EXCEPT Home's #hm-banner, which stays as a compact card ("Your Trading Day", the date, then the day P&L, Winners place and Losers place tiles; with no trade it shows the import message) and stay on the website.
    The user badge (sidebar footer, .sb-foot) exists on the WEBSITE only (Theme + Edit profile + Change password + Log out) and is hidden on phones; on a phone Edit profile = Profile page, Theme + Change password + Log out = Settings (#theme-card, #acct-card). On phones Change password lives in Settings; on the website it is in the badge dropdown (the Account card is hidden there). New fixed things must clear var(--mt-h) at the top and var(--nb-h) at the bottom, and modals must keep
    z-index above 40 (the bars).
 29. FUTURES ONLY + SYMBOL CATALOG. The app ranks FUTURES and nothing else (there is no market picker). SYM_CAT (script) lists every futures contract the app ranks, most popular first, and mirrors the SQL
@@ -196,20 +196,38 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user applies SQL with the Supabase CLI. In a folder on their (cheap, Windows) laptop they keep supabase/migrations/*.sql, and one command, `npx supabase db push`, runs only the migration files the project has not seen yet.
    Their project ref is ckbvxdygagrckbdvemzv. EVERY time you change the database: (1) append the new numbered section to supabase-setup.sql (that file stays the full, current copy; read it before editing any existing function),
    AND (2) write that same section as a NEW migration file named <14 digit timestamp, later than the last one>_<short_name>.sql, e.g. 20261105120000_profile_privacy.sql, and hand both files back.
-   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47).
+   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
 35. MARKET HOLIDAYS (SQL sections 45 + 46, migrations 20261029210000_market_holidays.sql and 20261029230000_holiday_rules.sql): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends
    (Thanksgiving: Wed's board opens Wed 6 PM ET, the card shows until Thu 6 PM ET when the market reopens, Fri's board replaces it Fri 6 PM ET).
-   THE LIST IS WORKED OUT BY RULE FOR ANY YEAR (SQL nyse_rule_holiday: the 10 NYSE full-day closures, Easter-based Good Friday, Sat -> Fri / Sun -> Mon "(observed)" shifts; a Saturday Jan 1 is NOT moved, NYSE rule). Nothing needs reseeding.
-   The table market_holidays now holds only the owner's EXCEPTIONS (closed = true: extra closure, closed = false: the market is open that day after all); examples are in the section 46 comment. Early closes are not holidays.
-   Everything (trading_day_of, home_latest_day(_at), board_changes_at, market_is_open, my_trade_slots, trade_log_error, stats_page) asks market_holiday_name(). CME equity futures do trade short sessions on some of these days; "closed all day" is the owner's simplification.
+   SINCE SQL SECTION 49 (migration 20261030180000_holiday_short_sessions.sql) ONLY THREE KINDS OF DAY ARE "HOLIDAYS" HERE: New Year's Day, Good Friday and Christmas Day (with their "(observed)" shifts), because CME equity futures trade a short session on every other NYSE holiday
+   (they halt at 1:00 PM ET); those are early-close trading days with their own scoreboard, see note 36. market_holiday_name / market_holiday_between read market_rule_closure(); market_rule_short_session() names the short ones.
+   THE LIST IS WORKED OUT BY RULE FOR ANY YEAR (SQL nyse_rule_holiday names all 10 NYSE full-day closures, Easter-based Good Friday, Sat -> Fri / Sun -> Mon "(observed)" shifts; a Saturday Jan 1 is NOT moved, NYSE rule). Nothing needs reseeding.
+   The table market_holidays now holds only the owner's EXCEPTIONS (closed = true: extra closure, closed = false: the market is open that day after all); examples are in the section 46 comment. Early closes are not holidays (they have their own rule, note 36).
+   Everything (trading_day_of, home_latest_day(_at), board_changes_at, market_is_open, my_trade_slots, trade_log_error, stats_page) asks market_holiday_name(). (The owner first treated every NYSE holiday as closed all day; section 49 replaced that for the short-session ones.)
    The app asks market_holiday_info() ONCE (HOL in index.html): closed now -> Holiday card on Home + compact on Stats; a holiday within 7 days -> heads-up line; the holiday list -> Home/Stats calendars mark holidays and refuse weekends + holidays (input._calRules in the UI kit).
    NO POLLING: the answer carries valid_until (SQL section 47: the next midnight ET, shortened only when a closure starts or ends sooner: the 6 PM ET the Holiday card appears, or the 6 PM ET the market reopens; so about 1 call per person per day and edits to the exceptions table reach people within a day); holLoad() makes no call before it and ONE timer (HOL.timer, with a little jitter so 50,000 phones do not call at the same second) asks again then, only while Home or Stats is open.
    HEADS-UP LINE = ONCE PER HOLIDAY PER PERSON: the first time it is drawn on a visible Home/Stats page the browser calls Backend.holidayHeadsupSeen(day) (SQL holiday_headsup_seen, table kept per account, in Download my data); SQL then skips that holiday for that person.
    ADMIN: Settings -> Admin tools -> Holiday Card Preview (#hol-card) calls SQL admin_holiday_preview() for a random (or chosen) holiday and draws the Holiday card or the heads-up line on Home + Stats for that admin only (HOL.preview, memory only, nothing saved, a Preview bar with Stop preview).
    The real status stays in HOL.info (the import dialog and calendars use it, never the preview). admin_holiday_reset_seen() lets the admin see their own heads-up line again.
    HOL_HIDE_BOARD = true hides the scoreboard / charts while the card shows (default false: card on top, board below). Day arrows skip holidays (dkClosed). Without the SQL installed the page still works (weekends only).
+36. EARLY-CLOSE ("HALF") DAYS (SQL section 48, migration 20261030120000_early_closes.sql): on a day the market closes early the SAME three rules apply, just earlier: logging closes 55 minutes AFTER the close, the day's board opens 60 minutes after it
+   and stays up until the next trading day's board replaces it. Normal day: close 5:00 PM ET, log until 5:55 PM ET, board 6:00 PM ET. Early-close day: close 1:15 PM ET (CME's 12:15 PM CT halt), log until 2:10 PM ET, board 2:15 PM ET.
+   The next SESSION still opens at 6:00 PM ET, so "6:00 PM ET" now means only the session open / market reopen; "the board opens" is board_open_time(day) / board_open_at(day) and "logging closes" is log_deadline_time(day). NEVER write 17:55 or 18:00 for those two again.
+   WHICH DAYS = BY RULE for any year: the Friday after Thanksgiving, Dec 24 on Mon-Thu and July 3 on Mon-Thu close 1:15 PM ET (nyse_rule_early_close); the holiday SHORT SESSIONS (SQL section 49: MLK, Presidents', Memorial, Juneteenth, Independence Day incl. observed, Labor Day, Thanksgiving Day) close 1:00 PM ET (CME's 12:00 PM CT halt) and are trading days.
+   Exceptions and other times: tables market_early_closes and market_holidays (examples in the section 48 and 49 comments). Full closures (New Year's, Good Friday, Christmas) are never early closes.
+   Everything asks market_close_time(date): market_is_open, trade_log_error (the lock behind the import dialog; its messages name the real times), my_trade_slots, home_latest_day_at, board_changes_at, notification_feed, market_holiday_info_at, admin_holiday_preview.
+   THE APP gets the list from the holiday answer it already loads (early_closes: day, name, closes, logs_until, board as Eastern HH:MM) into HOL.early; holHours(day) turns a day into clock text ("5:00 PM ET" or "1:15 PM ET"). It is used by the Home line
+   ("Trading day ..., closed 1:15 PM ET (early close)" and the next trading day's import deadline / board time), the Stats note, the import dialog (#im-rule-t, imShowDone, the replace window) and the test-data generator (no test trade after an early close).
+   NOT DONE ON PURPOSE: the Stats bar chart still spans the full 23 hours (bars after an early close are simply empty); no heads-up line and no Holiday card for an early close (the holiday short sessions of section 49 have neither: they are trading days, only New Year's, Good Friday and Christmas show the Holiday card). They DO get a small greeting banner, see note 37.
+37. HOLIDAY GREETING BANNERS (drawing only: NO SQL, no extra call; script block "Holiday greeting banners" right above the Holiday card code, CSS .hb; the same code and CSS live in holiday_banners_preview.html, keep the two in step):
+   a small animated banner (HB = version 1, HB2 = version 2, hbHtml) on Home (big) and Stats (compact), ABOVE the Holiday card / heads-up line and the board. It shows on the Eastern calendar day of the holiday: the 7 short-session holidays of section 49,
+   the 3 full closures (shown above the Holiday card; HB_ON_CLOSED) and the 3 early-close eves Christmas Eve / Independence Day Eve / Day After Thanksgiving (HB_EVES; titles from hbTitle). The day and the real hours come from the holiday answer HOL already loads
+   (HOL.map = full closures, HOL.early = short sessions + eves), matched to a look BY NAME in hbThemeFor(), so the banner changes at midnight ET with the next holiday refresh (valid_until, note 35). Its last line is the real hours (holHours) or "The market is closed today."
+   TWO VERSIONS of every banner rotate by themselves: hbVersion(key, day, HB_VERSION) = (year + the holiday's place in HB) % 2, so everybody sees the same one on a given day and each holiday flips every year; HB_VERSION 'a' / 'b' forces one.
+   To add a holiday or a third look: add the key to HB (and HB2), its name pattern to hbThemeFor() and a line to WHEN in the preview file. The banner has its own colors (same in every theme).
+   ADMIN: Settings -> Admin tools -> Holiday Card Preview -> Greeting Banner Preview draws any banner in any version on Home + Stats for that admin only (HOL.bprev, memory only; Stop Preview clears it).
 -->
 <html lang="en">
 <head>
@@ -1326,6 +1344,36 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   @keyframes holPulse{ 0%{ box-shadow:0 0 0 0 rgba(var(--hol-rgb), .55); } 75%,100%{ box-shadow:0 0 0 9px rgba(var(--hol-rgb), 0); } }
   @keyframes holTwinkle{ 0%,100%{ opacity:.25; transform:scale(.8) rotate(0deg); } 50%{ opacity:.9; transform:scale(1.1) rotate(20deg); } }
   @media (prefers-reduced-motion:reduce){ .hol-card, .hol-note, .hol-spark, .hol-kicker i{ animation:none; } }
+  /* ---------- Holiday greeting banners (.hb, script block "Holiday greeting banners", note 37). Own colors: they look the same in every theme. Same CSS as holiday_banners_preview.html. ---------- */
+  /* Holiday greeting banners (hbHtml in the script). Own colors, so they look the same in every app theme. Shared by index.html and holiday_banners_preview.html. */
+  .hb{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;min-height:94px;padding:12px 18px;margin:0 0 14px;border-radius:16px;color:#fff;background:var(--hbbg);box-shadow:0 6px 22px rgba(0,0,0,.28);isolation:isolate;text-align:left}
+  .hb.c{min-height:62px;padding:8px 14px;gap:10px}
+  .hb-art{flex:none;width:72px;height:72px;position:relative;z-index:1;overflow:visible}
+  .hb.c .hb-art{width:46px;height:46px}
+  .hb-art .tl,.hb-art .pl,.hb-art .spin{transform-box:fill-box;transform-origin:center}
+  .hb-t{position:relative;z-index:1;flex:1;min-width:0;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+  .hb-t b{display:block;font:700 20px/1.2 Georgia,'Times New Roman',serif;letter-spacing:.2px}
+  .hb-t span{display:block;margin-top:3px;font:500 12.5px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;opacity:.94}
+  .hb-t .tg{font-style:italic;opacity:.85}
+  .hb.c .tg{display:none}.hb.c .hb-t b{font-size:16px}.hb.c .hb-t span{font-size:11.5px;margin-top:1px}
+  @media(max-width:560px){.hb-art.r{display:none}.hb-t b{font-size:17px}}
+  .hb-fx{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .hb-fx i{position:absolute;left:var(--x);top:-14px;width:var(--s);height:var(--s);background:var(--c);opacity:.92;border-radius:50%;animation:hbf var(--d) linear var(--w) infinite}
+  .hb-fx.lf i{border-radius:0 100% 0 100%}.hb-fx.pt i{border-radius:60% 40% 60% 40%}.hb-fx.cf i{height:calc(var(--s)*.55);border-radius:1px}.hb-fx.rb i{width:4px;height:calc(var(--s)*1.6);border-radius:2px}
+  .hb-fx.tw i{top:var(--y);animation-name:hbt;animation-timing-function:ease-in-out}
+  .hb-fx.up i{top:auto;bottom:-6px;animation-name:hbu;animation-timing-function:ease-out}
+  .hb-fx u{position:absolute;left:var(--x);top:var(--y);width:5px;height:5px;border-radius:50%;opacity:0;color:var(--c);background:currentColor;box-shadow:0 -24px,0 24px,24px 0,-24px 0,17px 17px,-17px -17px,17px -17px,-17px 17px;animation:hbb var(--d) ease-out var(--w) infinite}
+  @keyframes hbf{to{transform:translate(var(--dx),130px) rotate(var(--rot))}}
+  @keyframes hbt{0%,100%{opacity:.12;transform:scale(.55)}50%{opacity:1;transform:scale(1.15)}}
+  @keyframes hbu{0%{transform:translateY(0);opacity:0}15%{opacity:.95}100%{transform:translateY(-100px);opacity:0}}
+  @keyframes hbb{0%{transform:scale(.1);opacity:1}70%{opacity:1}100%{transform:scale(1.5);opacity:0}}
+  @keyframes hbs{to{transform:rotate(360deg)}}
+  @keyframes hbp{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+  .hb-art .tl{animation:hbt 1.8s ease-in-out infinite}.hb-art .pl{animation:hbp 2.6s ease-in-out infinite}.hb-art .spin{animation:hbs 16s linear infinite}
+  @media(prefers-reduced-motion:reduce){.hb *{animation:none!important}.hb-fx i{opacity:.5}}
+  .hb-pause *{animation-play-state:paused!important}
+  #hm-hol .hb, #st-hol .hb{ margin:14px 0 4px; } #st-hol .hb{ margin-top:12px; } .hol-prev + .hb{ margin-top:10px; }
+  #hm-hol .hb + .hol-card, #st-hol .hb + .hol-card, #hm-hol .hb + .hol-note, #st-hol .hb + .hol-note{ margin-top:10px; }
   /* Optional: HOL_HIDE_BOARD = true (script) hides the scoreboard / charts while the Holiday card is up */
   #page-home.hol-only #hm-board-bar, #page-home.hol-only #hm-sub, #page-home.hol-only #hm-grid, #page-stats.hol-only #st-bar, #page-stats.hol-only #st-banner, #page-stats.hol-only #st-note, #page-stats.hol-only #st-charts{ display:none; }
   .pf-lk.up{ --lkc:var(--lk-up); } .pf-lk.step{ --lkc:var(--lk-lock); } .pf-lk.heart{ --lkc:var(--lk-heart); }
@@ -2849,13 +2897,13 @@ html[data-theme="dark"] .tt-medal.rw, html[data-theme="dark"] .tt-rk.rw{ --m:var
     .mtop h1{ position:absolute; left:56px; right:56px; text-align:center; flex:1; min-width:0; margin:0; pointer-events:none; font:800 22px var(--font-sans); letter-spacing:-.02em; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .mt-ic{ flex:none; width:40px; height:40px; display:grid; place-items:center; border:0; border-radius:12px; background:none; color:var(--text); cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .mt-ic svg{ width:25px; height:25px; display:block; } .mt-ic:active{ background:color-mix(in srgb, var(--text) 8%, transparent); } .mt-ic[hidden]{ display:none; }
-    #mt-back{ margin-left:-10px; } #mt-gear, #mt-syms{ margin-left:auto; margin-right:-8px; }   /* the title is centered on its own, so auto margin pushes the gear to the right corner */
+    #mt-back, #mt-howto{ margin-left:-10px; } #mt-gear, #mt-syms{ margin-left:auto; margin-right:-8px; }   /* the title is centered on its own, so auto margin pushes the gear to the right corner */
     body:has(#pf-back.show) #mt-gear{ display:none; }                       /* looking at someone else's profile: no Settings gear */
     .app{ display:block; padding:calc(var(--mt-h) + env(safe-area-inset-top, 0px) + 14px) 14px calc(var(--nb-h) + env(safe-area-inset-bottom, 0px) + 24px); }
     /* the page banners are for the website; the title bar says where you are. Home keeps its "my day" tiles (they are content, not a title). */
     .page-head:not(.hm-banner){ display:none !important; }
-    .hm-banner{ padding:0 !important; margin:0 0 12px !important; background:none !important; border:0 !important; box-shadow:none !important; }
-    .hm-banner::after{ display:none; } .hm-banner .ph-ico, .hm-banner .hm-bn-main{ display:none; } .hm-banner:has(.hm-bn-stats:empty){ display:none; }
+    .hm-banner{ padding:14px 12px 12px !important; margin:0 0 12px !important; gap:10px !important; border-radius:18px; }   /* Home keeps its banner on phones: "Your Trading Day", the date and the three tiles (day P&L, Winners place, Losers place) */
+    .hm-banner::after, .hm-banner .ph-ico{ display:none; } .hm-banner .hm-bn-main{ flex:1 1 100%; } .hm-banner .hm-bn-main h2{ font-size:18px; } .hm-banner .hm-bn-main p{ margin-top:3px; font-size:12.5px; }
     /* bottom bar: Home, Stats, +, Notifications, Profile (Settings is the gear on Profile) */
     html body .sidebar{ position:fixed !important; z-index:40; left:0; right:0; bottom:0; top:auto !important; width:auto; height:auto !important; min-height:0 !important; box-sizing:border-box; display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; align-items:center; justify-content:space-around; gap:0 !important;
       padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px)) !important; border-radius:0 !important; border:0 !important; border-top:1px solid var(--line-strong) !important; background:var(--surface) !important; box-shadow:none !important; }
@@ -2897,7 +2945,7 @@ html[data-theme="dark"] .tt-medal.rw, html[data-theme="dark"] .tt-rk.rw{ --m:var
   .hm-bar .hm-date{ flex:1 1 0; min-width:0; max-width:none; }
   .hm-bar .hm-step{ flex:none; width:38px; }
   .hm-bar .hm-latest{ flex:none; padding:0 11px; font-size:13.5px; }
-  .hm-bar .hm-howto{ flex:none; width:38px; height:var(--flt-h); padding:0; gap:0; justify-content:center; border-radius:11px; }
+  .hm-bar .hm-howto{ display:none; }   /* on phones How To is the button in the top bar's left corner (#mt-howto, Home only); the welcome tour follows whichever one is visible (tourBtn) */
   .hm-howto .hm-howto-t{ display:none; }
   .hm-howto svg{ width:20px; height:20px; }
   .hm-bar .hm-seg{ display:flex; flex:1 1 0; min-width:0; }
@@ -2915,7 +2963,7 @@ html[data-theme="dark"] .tt-medal.rw, html[data-theme="dark"] .tt-rk.rw{ --m:var
   /* ---- "my day" tiles: three equal tiles in one row, labels and numbers lined up ---- */
   #hm-bn-stats{ display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:8px; }
   #hm-bn-stats .hm-bt{ display:flex; flex-direction:column; align-items:flex-start; padding:10px 9px; border-radius:12px; }
-  #hm-bn-stats .hm-bt span{ order:1; max-width:100%; font-size:9px; letter-spacing:.02em; }
+  #hm-bn-stats .hm-bt span{ order:1; max-width:100%; font-size:9px; letter-spacing:.02em; white-space:normal; line-height:1.2; min-height:2.4em; }   /* a long label wraps to a second line instead of being cut off; every label keeps two lines so the numbers line up */
   #hm-bn-stats .hm-bt.has-sym span{ padding-right:0; }
   #hm-bn-stats .hm-bt b{ order:2; max-width:100%; margin-top:5px; font-size:17px; }
   #hm-bn-stats .hm-bt .hm-of{ display:block; margin-top:1px; font-size:10.5px; }
@@ -3134,6 +3182,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
 <div class="toast-container toast-container-success" id="toastContainerSuccess"></div>
 
 <header class="mtop" id="mtop">
+  <button type="button" class="mt-ic" id="mt-howto" aria-label="How To" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9"/><path d="M12 17.2h.01"/></svg></button>
   <button type="button" class="mt-ic" id="mt-back" aria-label="Back to profile" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
   <h1 id="mt-title">Home</h1>
   <button type="button" class="mt-ic" id="mt-gear" aria-label="Settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -3357,6 +3406,15 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         <p class="gen-status" id="hol-status" aria-live="polite">No preview showing.</p>
         <div class="gen-actions"><button type="button" class="stamp-btn" id="hol-go">Generate Preview</button><button type="button" class="stamp-btn secondary" id="hol-view-home" disabled>View On Home</button><button type="button" class="stamp-btn secondary" id="hol-view-stats" disabled>View On Stats</button><button type="button" class="stamp-btn secondary" id="hol-stop" disabled>Stop Preview</button></div>
         <div class="gen-mine">
+          <h5>Greeting Banner Preview</h5>
+          <p class="gen-sub">See any holiday greeting banner on Home and Stats, in version 1, version 2, or the one the app rotates to. Nothing is saved and only you can see it. Stop Preview above clears it.</p>
+          <div class="gen-grid">
+            <div class="im-f"><label for="hb-pick">Banner</label><select id="hb-pick" class="tz-select"></select></div>
+            <div class="im-f"><label for="hb-ver">Version</label><select id="hb-ver" class="tz-select"><option value="rotate">Rotation (what the app picks)</option><option value="a">Version 1</option><option value="b">Version 2</option></select></div>
+          </div>
+          <div class="gen-actions"><button type="button" class="stamp-btn" id="hb-go">Preview Banner</button></div>
+        </div>
+        <div class="gen-mine">
           <h5>Heads-Up Line Memory</h5>
           <p class="gen-sub">The real heads-up line shows once per holiday for each person, then never again. This forgets which ones your own account has already seen, so you can watch the real line show (and be remembered) again.</p>
           <div class="gen-actions"><button type="button" class="stamp-btn secondary" id="hol-reset">Reset My Heads-Up Flags</button></div>
@@ -3513,7 +3571,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
 
     <div class="pm-body">
       <div class="form-error" id="im-error" role="alert"></div>
-      <p class="im-rule">Log today’s trades until 5:55 PM ET.<span id="im-tz" hidden></span></p>
+      <p class="im-rule"><span id="im-rule-t">Log today’s trades until 5:55 PM ET.</span><span id="im-tz" hidden></span></p>
 
       <div id="imDrop">
         <div class="im-two">
@@ -3619,7 +3677,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       <div class="ht-cols">
         <div class="ht-col yes"><h4>You can</h4><ul>
           <li>Import as many trades as you like. Only 2 are kept per day.</li>
-          <li>Replace a saved trade with a new one until 5:55 PM ET. We tell you if the new one is bigger.</li>
+          <li>Replace a saved trade with a new one until 5:55 PM ET (55 minutes after the close on an early-close day). We tell you if the new one is bigger.</li>
           <li>Import again later the same day.</li>
         </ul></div>
         <div class="ht-col no"><h4>You can&rsquo;t</h4><ul>
@@ -3631,7 +3689,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         </ul></div>
       </div>
       <div class="ht-tip" style="margin:16px 0 0"><b>Cheer each other on</b> Tap the <span class="ht-ic" style="color:var(--lk-up)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z"/></svg></span> flame on a winning trade to say well done. Tap the <span class="ht-ic" style="color:var(--lk-lock)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r=".5"/></svg></span> crosshair on a losing trade to tell that trader to lock in and keep going. Double-tap a card to do either.</div>
-      <p class="ht-note">A trade must open and close while the market is open, on the current trading day. Logging closes at 5:55 PM ET and a new day opens at 6:00 PM ET.</p>
+      <p class="ht-note">A trade must open and close while the market is open, on the current trading day. Logging closes at 5:55 PM ET and a new day opens at 6:00 PM ET. On early-close days (the day after Thanksgiving, Christmas Eve and July 3) the market closes at 1:15 PM ET, logging closes at 2:10 PM ET and that day’s board opens at 2:15 PM ET.</p>
     </div>
     <div class="pm-actions"><button type="button" class="stamp-btn" id="htClose">Got it</button></div>
   </div>
@@ -4186,6 +4244,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const dk = v => typeof v === 'string' ? v.slice(0, 10) : null;
     return { closed:!!data.closed, holidayDay:dk(data.holiday_day), holidayName:data.holiday_name || '', shownDay:dk(data.shown_day), nextDay:dk(data.next_day), reopensAt:data.reopens_at || null, boardAt:data.board_at || null,
       upcomingDay:dk(data.upcoming_day), upcomingName:data.upcoming_name || '', upcomingIn:data.upcoming_in == null ? null : Number(data.upcoming_in), holidays:(data.holidays || []).map(x => ({ day:dk(x.day), name:x.name || '' })),
+      earlyCloses:(data.early_closes || []).map(x => ({ day:dk(x.day), name:x.name || '', closes:x.closes || '', logs:x.logs_until || '', board:x.board || '' })),   // early-close days (SQL section 48), times are Eastern HH:MM text
       validUntil:data.valid_until || null, preview:!!data.preview, picked:data.holiday_picked || '' };
   }
   // BACKEND ADAPTER: the ONLY code that talks to Supabase (see the migration note at the top of this file).
@@ -5802,8 +5861,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const entry = rnd(GEN_BASE[sym] * (1 + (Math.random() - .5) * .03), tick), exit = rnd(side === 'long' ? entry + move : entry - move, tick);
     const hold = { win:12, loss:6, be:18 }[outcome];
     const secs = Math.max(45, Math.min(14400, Math.round(Math.exp(Math.log(hold * 60) + .75 * genNorm()))));
-    const opened = genEt(day.getFullYear(), day.getMonth(), day.getDate(), genEntryMinutes(), genInt(0, 59));
-    const lastClose = zonedDate('America/New_York', day.getFullYear(), day.getMonth(), day.getDate(), 16 * 60 + 59, 0);   // the futures day closes at 5:00 PM ET, so nothing closes after the last minute before that
+    const dkey = day.getFullYear() + '-' + String(day.getMonth() + 1).padStart(2, '0') + '-' + String(day.getDate()).padStart(2, '0'), ec = HOL.early[dkey];
+    const lastMin = ec ? (+ec.closes.slice(0, 2)) * 60 + (+ec.closes.slice(3, 5)) - 1 : 16 * 60 + 59;   // the futures day closes at 5:00 PM ET (early-close day: SQL section 48), so nothing closes after the last minute before that
+    const opened = genEt(day.getFullYear(), day.getMonth(), day.getDate(), Math.min(genEntryMinutes(), lastMin - 10), genInt(0, 59));
+    const lastClose = zonedDate('America/New_York', day.getFullYear(), day.getMonth(), day.getDate(), lastMin, 0);
     const closed = new Date(Math.min(opened.getTime() + secs * 1000, lastClose.getTime()));
     const cat = Math.random() < .4 ? user.fav : genWeighted(GEN_ENTRY_W);
     return { symbol:sym, side, size, opened_at:opened.toISOString(), closed_at:closed.toISOString(), entry_price:entry, exit_price:exit,
@@ -7090,7 +7151,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       r = await Backend.tradeSlots(all.map(t => { const o = imWall(t.opened), c = imWall(t.closed); return { opened_at:isNaN(o) ? null : o.toISOString(), closed_at:isNaN(c) ? null : c.toISOString() }; }));
     }finally{ IMP.reading = false; }
     if(r.error) return { error:{ msg:r.error.message, title:'Couldn\u2019t check your trades' } };
-    IMP.slots = { best:r.best, worst:r.worst };
+    IMP.slots = { best:r.best, worst:r.worst, day:r.day };
     if(r.open === false) return { done:true };   // the trading day is over: nothing can be logged or swapped
     const rows = all.map((t, i) => ({ t, st:imStats(t), err:r.errors[i] || null }));
     const ok = rows.filter(x => x.st && x.st.pts !== 0 && !x.err);
@@ -7105,10 +7166,15 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     imAutoPick(); imApplySel();
     return { trades:IMP.trades, pick:{ found:all.length, outOfDay, even, unread } };
   }
+  function imRuleSet(day){   // "Log today's trades until ..." follows the day's hours (early-close days end sooner)
+    const el = $('#im-rule-t'); if(!el) return; const h = holHours(day);
+    el.textContent = 'Log today\u2019s trades until ' + h.logs + (h.early ? ' (early-close day: the market closes ' + h.closes + ')' : '') + '.';
+  }
   function imShowDone(){
+    const dh = holHours(IMP.slots && IMP.slots.day);
     showConfirm({ title:'Logging is closed for now', noCancel:true, confirmLabel:'Got it',
       message:HOL.info && HOL.info.closed ? 'Markets are closed for ' + HOL.info.holidayName + ', so nothing can be added or replaced right now. The next trading day opens ' + holEt(HOL.info.reopensAt, { weekday:'long' }) + ' at 6:00 PM ET.'
-        : 'You can log or swap your 2 trades (one Best, one Worst) until 5:55 PM ET on the current trading day. That time has passed, so nothing can be added or replaced right now. The next trading day opens at 6:00 PM ET (Sunday evening over the weekend).',
+        : 'You can log or swap your 2 trades (one Best, one Worst) until ' + dh.logs + ' on the current trading day. That time has passed, so nothing can be added or replaced right now. The next trading day opens at 6:00 PM ET (Sunday evening over the weekend).',
       icon:ICO('<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>') });
   }
   function imRenderSlots(){
@@ -7326,8 +7392,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   async function openImport(){
     if(!current()){ showToast('Log in first', 'Log in to import trades.', 'error'); return; }
     const sl = await Backend.tradeSlots();   // the logging window is over -> no dialog, just the "logging is closed" window (saved trades can still be swapped until then)
-    if(!sl.error && sl.open === false){ IMP.slots = { best:sl.best, worst:sl.worst }; imShowDone(); return; }
-    imReset(); IMP.slots = sl.error ? null : { best:sl.best, worst:sl.worst }; imImError(''); imRender(); $('#importOverlay').classList.add('active');
+    if(!sl.error && sl.open === false){ IMP.slots = { best:sl.best, worst:sl.worst, day:sl.day }; imShowDone(); return; }
+    imReset(); IMP.slots = sl.error ? null : { best:sl.best, worst:sl.worst, day:sl.day }; imRuleSet(sl.error ? null : sl.day); imImError(''); imRender(); $('#importOverlay').classList.add('active');
   }
   window.__openImport = openImport;
 
@@ -7399,7 +7465,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       const lines = reps.map(x => 'Your saved ' + imRoleName(x.role) + ' trade is ' + x.c.oldTxt + ' and the new one is ' + x.c.newTxt + ', ' + x.c.word + '.' + x.c.basis);
       showConfirm({ title:one ? 'Replace your saved ' + imRoleName(reps[0].role) + ' trade?' : 'Replace your saved trades?', confirmLabel:weak ? 'Replace anyway' : one ? 'Replace trade' : 'Replace trades', danger:weak,
         message:lines.join(' ') + ' ' + (weak ? 'A new trade that isn\u2019t bigger doesn\u2019t improve your day, so we suggest keeping your saved ' + (one ? 'trade' : 'trades') + '. ' : '') +
-          'Replacing deletes the saved ' + (one ? 'trade' : 'trades') + ' for good. You can swap again until 5:55 PM ET.',
+          'Replacing deletes the saved ' + (one ? 'trade' : 'trades') + ' for good. You can swap again until ' + holHours(IMP.slots && IMP.slots.day).logs + '.',
         icon:ICO('<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'), onConfirm:() => imCommit(payload, true) });
       return;
     }
@@ -7420,7 +7486,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
 
   $('#sb-import').addEventListener('click', openImport);
   // Home > How To: a short read-only window about importing (no data, nothing stored)
-  $('#hm-howto').addEventListener('click', () => { $('#howtoOverlay').classList.add('active'); $('#htClose').focus({ preventScroll:true }); });
+  const openHowTo = () => { $('#howtoOverlay').classList.add('active'); $('#htClose').focus({ preventScroll:true }); };
+  $('#hm-howto').addEventListener('click', openHowTo); $('#mt-howto').addEventListener('click', openHowTo);   // website button in the Home bar, phone button in the top bar
   $('#htClose').addEventListener('click', () => $('#howtoOverlay').classList.remove('active'));
   $('#howtoOverlay').addEventListener('click', e => { if(e.target === e.currentTarget) e.currentTarget.classList.remove('active'); });
   $('#imDropZone').addEventListener('click', () => Device.pickFile());
@@ -7521,11 +7588,128 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   // HOL.info = the answer of market_holiday_info() (memory only), HOL.map = { 'YYYY-MM-DD': 'Holiday name' } for the calendars and the day arrows. HOL.preview = the admin's Holiday Card Preview (section 46), drawn instead of HOL.info on Home / Stats.
   // SET THIS TO true IF YOU WANT THE SCOREBOARD (Home) AND CHARTS (Stats) HIDDEN WHILE THE HOLIDAY CARD IS SHOWING. false = the card sits on top and the previous board stays below it.
   const HOL_HIDE_BOARD = false;
-  const HOL = { info:null, map:{}, at:0, p:null, retry:0, until:0, timer:null, preview:null, acked:{} };   // info = the REAL status (import dialog, calendars); preview = an admin's pretend status (memory only); until = when info stops being valid; acked = heads-up lines already reported as seen
+  const HOL = { info:null, map:{}, early:{}, at:0, p:null, retry:0, until:0, timer:null, preview:null, bprev:null, acked:{} };   // info = the REAL status (import dialog, calendars); preview = an admin's pretend status (memory only); until = when info stops being valid; acked = heads-up lines already reported as seen
   const dkClosed = k => dkWeekend(k) || !!HOL.map[k];
   function dkPrevTrading(k){ do { k = dkAdd(k, -1); } while(dkClosed(k)); return k; }
   function dkNextTrading(k){ do { k = dkAdd(k, 1); } while(dkClosed(k)); return k; }
+  // ----- Early-close ("half") days (SQL section 48). HOL.early = { 'YYYY-MM-DD': { name, closes, logs, board } } with Eastern HH:MM text, from the holiday answer (no extra call).
+  // Normal day: market closes 5:00 PM ET, logging until 5:55 PM ET, board 6:00 PM ET. Early-close day: SQL gives the times (1:15 PM / 2:10 PM / 2:15 PM ET). The session still opens at 6:00 PM ET.
+  const holClock = hhmm => { const q = String(hhmm || '').split(':').map(Number), h = q[0] || 0, m = q[1] || 0; return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? 'PM' : 'AM') + ' ET'; };
+  const holEtClock = ts => { const q = {}; new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', hourCycle:'h23', hour:'numeric', minute:'numeric' }).formatToParts(new Date(ts)).forEach(x => { q[x.type] = x.value; }); return holClock(q.hour + ':' + q.minute); };
+  function holHours(day){
+    const e = day && HOL.early[day];
+    return e ? { early:e.name || 'Early close', closes:holClock(e.closes), logs:holClock(e.logs), board:holClock(e.board) } : { early:'', closes:'5:00 PM ET', logs:'5:55 PM ET', board:'6:00 PM ET' };
+  }
+  function holHoursRedraw(){ if(HOME._sa) homeSub(HOME._sa[0], HOME._sa[1]); if(!$('#page-stats').hidden) stSyncBar(); }
   const holEt = (ts, o) => new Date(ts).toLocaleDateString('en', Object.assign({ timeZone:'America/New_York' }, o));
+  // ----- Holiday greeting banners (note 37). Pure drawing: no SQL, no extra call. The day and its real hours come from the holiday answer HOL already loads (HOL.map = full closures, HOL.early = short sessions + early-close eves).
+  const HB_VERSION = 'rotate';   // 'rotate' = the two looks alternate by year and holiday; 'a' = always version 1; 'b' = always version 2
+  const HB_ON_CLOSED = true;     // false = no banner on the three full closures (New Year's, Good Friday, Christmas): the Holiday card greets alone there
+  const HB_EVES = true;          // false = no banner on Christmas Eve / Independence Day Eve / Day After Thanksgiving (1:15 PM ET early closes)
+  // ----- Holiday greeting banners (HB, HB_LIST, hbThemeFor, hbTitle, hbHtml). Shared by index.html and holiday_banners_preview.html (CSS: .hb). Pure drawing, no data calls.
+  // Everything is drawn from tiny SVG shapes plus CSS animation; the falling / twinkling bits come from a SEEDED random so the same banner always makes the same HTML (Home only redraws when the HTML changes).
+  const hbEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  const hbRays = (cx, cy, r1, r2, n, a0, span) => { let d = ''; const st = span >= 360 ? span / n : span / (n - 1); for(let i = 0; i < n; i++){ const a = (a0 + st * i) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); d += 'M' + (cx + r1 * c).toFixed(1) + ' ' + (cy + r1 * s).toFixed(1) + 'L' + (cx + r2 * c).toFixed(1) + ' ' + (cy + r2 * s).toFixed(1); } return d; };
+  const hbLight = (x, y, c, dl) => '<circle class="tl" style="animation-delay:' + dl + 's" cx="' + x + '" cy="' + y + '" r="2.3" fill="' + c + '"/>';
+  function hbFx(sp, seed){   // sp = [kind, colors, count, [minSize, maxSize], shape]; kinds: dn (falls), up (rises), tw (twinkles), bu (firework bursts)
+    let a = seed * 7919 + 13; const rnd = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    let h = ''; for(let i = 0; i < sp[2]; i++){
+      const st = '--x:' + (rnd() * 96).toFixed(1) + '%;--y:' + (8 + rnd() * 68).toFixed(1) + '%;--s:' + (sp[3][0] + rnd() * (sp[3][1] - sp[3][0])).toFixed(1) + 'px;--c:' + sp[1][i % sp[1].length] + ';--d:' + (sp[0] === 'bu' ? 2.6 + rnd() * 1.4 : 3 + rnd() * 4).toFixed(1) + 's;--w:-' + (rnd() * 6).toFixed(1) + 's;--dx:' + ((rnd() - .5) * 50).toFixed(0) + 'px;--rot:' + ((rnd() - .5) * 720).toFixed(0) + 'deg';
+      h += sp[0] === 'bu' ? '<u style="' + st + '"></u>' : '<i style="' + st + '"></i>'; }
+    return '<div class="hb-fx ' + sp[0] + (sp[4] ? ' ' + sp[4] : '') + '">' + h + '</div>';
+  }
+  const HB = {
+    newyear:{ label:'New Year\u2019s Day', title:'Happy New Year', tag:'Wishing you a profitable year ahead.', closed:true, bg:'linear-gradient(135deg,#1a1038,#3a1c71 55%,#b5179e)',
+      fx:['dn', ['#ffd54a', '#ff5a9d', '#5ac8fa', '#9be564', '#fff'], 26, [4, 8], 'cf'],
+      art:'<circle cx="32" cy="34" r="23" fill="#15122e" stroke="#ffd54a" stroke-width="3"/><path d="M32 14v4M32 50v4M12 34h4M48 34h4" stroke="#ffd54a" stroke-width="2" stroke-linecap="round"/><path d="M32 34V19M32 34l-5-3" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="32" cy="34" r="2" fill="#ffd54a"/>' + hbLight(54, 10, '#fff', 0) + hbLight(9, 14, '#ffd54a', .7) + hbLight(57, 52, '#fff', 1.2) },
+    mlk:{ label:'Martin Luther King Jr. Day', title:'Martin Luther King Jr. Day', tag:'Honoring Dr. Martin Luther King Jr. and his legacy.', bg:'linear-gradient(135deg,#0d1b3e,#1b3a6b 55%,#c98a1b)',
+      fx:['tw', ['#ffd166', '#fff3c4', '#ffe29a'], 14, [3, 5]],
+      art:'<path class="pl" d="' + hbRays(32, 44, 19, 29, 9, 180, 180) + '" stroke="#ffd166" stroke-width="2.6" stroke-linecap="round"/><path d="M18 44a14 14 0 0 1 28 0z" fill="#ffd166"/><path d="M10 44h44M18 51h28" stroke="#ffd166" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>' },
+    presidents:{ label:'Presidents\u2019 Day', title:'Happy Presidents\u2019 Day', tag:'Celebrating the leaders who shaped the nation.', bg:'linear-gradient(135deg,#14213d,#1d3557 50%,#9d1c2e)',
+      fx:['tw', ['#fff', '#ffd9de', '#bcd3ff'], 14, [3, 5]],
+      art:'<g class="pl"><rect x="12" y="14" width="34" height="38" rx="3" fill="#f4ead2"/><ellipse cx="12" cy="33" rx="4" ry="19" fill="#d9c9a0"/><ellipse cx="46" cy="33" rx="4" ry="19" fill="#d9c9a0"/><path d="M20 24h18M20 31h18M20 38h12" stroke="#a99668" stroke-width="2" stroke-linecap="round"/></g><path d="M58 6C48 10 42 22 40 36l3 1c4-8 11-18 15-31z" fill="#fff"/><path d="M40 36l-4 12" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>' },
+    goodfriday:{ label:'Good Friday', title:'Good Friday', tag:'Wishing you a peaceful day.', closed:true, bg:'linear-gradient(135deg,#1b1230,#3b2a63 60%,#6b4f8f)',
+      fx:['tw', ['#e9dcff', '#fff'], 8, [2, 4]],
+      art:'<path d="M32 60V30" stroke="#6fbf73" stroke-width="3" stroke-linecap="round"/><path d="M32 52c-9 0-14-6-15-12 8 0 14 4 15 12z" fill="#4fa35a"/><path d="M32 46c8 0 13-5 14-10-7 0-13 3-14 10z" fill="#5fb869"/><g class="pl"><path d="M32 32c-9-2-12-10-11-20 5 2 9 6 11 11z" fill="#d89bff"/><path d="M32 32c9-2 12-10 11-20-5 2-9 6-11 11z" fill="#c47cf5"/><path d="M32 32c-6-4-6-13 0-22 6 9 6 18 0 22z" fill="#e8b8ff"/></g>' },
+    memorial:{ label:'Memorial Day', title:'Memorial Day', tag:'Remembering and honoring those who gave their lives in service.', bg:'linear-gradient(135deg,#1b2a41,#324a5f 55%,#7a1f2b)',
+      fx:['dn', ['#d62828', '#b71c1c', '#e04848'], 10, [6, 10], 'pt'],
+      art:'<path d="M32 40v22" stroke="#3f7d3a" stroke-width="2.6" stroke-linecap="round"/><path d="M32 54c6-6 12-4 14-2-4 5-10 6-14 2z" fill="#3f7d3a"/><g fill="#d62828"><circle cx="32" cy="18" r="9"/><circle cx="42" cy="26" r="9"/><circle cx="38" cy="37" r="9"/><circle cx="26" cy="37" r="9"/><circle cx="22" cy="26" r="9"/></g><circle cx="32" cy="28" r="5.5" fill="#231f20"/><circle cx="32" cy="28" r="1.6" fill="#7a7a7a"/>' },
+    juneteenth:{ label:'Juneteenth', title:'Happy Juneteenth', tag:'Celebrating freedom and new beginnings.', bg:'linear-gradient(135deg,#7a0f1f,#1f5d3a 60%,#c9961a)',
+      fx:['dn', ['#c8102e', '#f7c948', '#2e9e5b', '#fff'], 16, [6, 10], 'rb'],
+      art:'<g class="spin"><path d="' + hbRays(32, 32, 22, 29, 16, 0, 360) + '" stroke="#f7c948" stroke-width="2.4" stroke-linecap="round"/></g><circle cx="32" cy="32" r="18" fill="#c8102e" stroke="#f7c948" stroke-width="3"/><circle class="pl" cx="32" cy="32" r="8" fill="#f7c948"/>' },
+    july4:{ label:'Independence Day', title:'Happy Independence Day', tag:'Wishing you a happy and safe Fourth.', bg:'linear-gradient(135deg,#071333,#13296b 55%,#7a1226)',
+      fx:['bu', ['#ff4d5e', '#fff', '#4da3ff', '#ffd54a', '#ff4d5e'], 5, [5, 5]],
+      art:'<g class="spin"><path d="' + hbRays(32, 32, 11, 28, 12, 0, 360) + '" stroke="#ff4d5e" stroke-width="3" stroke-linecap="round"/><path d="' + hbRays(32, 32, 11, 24, 12, 15, 360) + '" stroke="#8ec5ff" stroke-width="2.4" stroke-linecap="round"/></g><circle cx="32" cy="32" r="5" fill="#fff"/>' },
+    labor:{ label:'Labor Day', title:'Happy Labor Day', tag:'Celebrating hard work and workers everywhere.', bg:'linear-gradient(135deg,#12263f,#1d4e89 60%,#c77b1a)',
+      fx:['up', ['#ffb347', '#ffd166', '#ff8c42'], 18, [2, 4]],
+      art:'<g class="spin"><circle cx="32" cy="32" r="21" fill="none" stroke="#f5a623" stroke-width="8" stroke-dasharray="8.2 8.2"/><path fill="#f5a623" fill-rule="evenodd" d="M32 15a17 17 0 1 0 .01 0zM32 25a7 7 0 1 1-.01 0z"/></g>' },
+    thanksgiving:{ label:'Thanksgiving', title:'Happy Thanksgiving', tag:'Grateful for this trading community.', bg:'linear-gradient(135deg,#3b1f0b,#8a4b14 55%,#d98a1d)',
+      fx:['dn', ['#e07b1d', '#c1440e', '#f2b632', '#a8431a'], 14, [7, 12], 'lf'],
+      art:[[-62, '#c1440e'], [-31, '#e07b1d'], [0, '#f2b632'], [31, '#e07b1d'], [62, '#c1440e']].map(f => '<ellipse cx="32" cy="18" rx="5.5" ry="15" fill="' + f[1] + '" transform="rotate(' + f[0] + ' 32 38)"/>').join('') + '<circle cx="32" cy="42" r="13" fill="#7b4a24"/><circle cx="32" cy="28" r="6.5" fill="#7b4a24"/><circle cx="29.6" cy="26.8" r="1.3" fill="#fff"/><circle cx="34.4" cy="26.8" r="1.3" fill="#fff"/><circle cx="29.6" cy="26.8" r=".55" fill="#111"/><circle cx="34.4" cy="26.8" r=".55" fill="#111"/><polygon points="30.2,29.6 33.8,29.6 32,33.2" fill="#f2a516"/><ellipse cx="32" cy="35.6" rx="1.7" ry="2.6" fill="#d62828"/><path d="M27 54l-2 7M37 54l2 7" stroke="#f2a516" stroke-width="2" stroke-linecap="round"/>' },
+    christmas:{ label:'Christmas', title:'Merry Christmas', tag:'Wishing you a joyful holiday season.', closed:true, bg:'linear-gradient(135deg,#0a2540,#145a7c 55%,#1f7a4f)',
+      fx:['dn', ['#fff', '#e8f4ff', '#cfe6ff'], 28, [2, 5]],
+      art:'<polygon points="32,6 44,26 20,26" fill="#1f9d57"/><polygon points="32,18 48,42 16,42" fill="#178a4a"/><polygon points="32,32 53,58 11,58" fill="#117a40"/><rect x="29" y="58" width="6" height="5" fill="#8b5a2b"/><circle class="pl" cx="32" cy="5" r="3.8" fill="#ffd54a"/>' + hbLight(29, 29, '#ff5a5f', 0) + hbLight(37, 38, '#ffd54a', .5) + hbLight(25, 49, '#5ac8fa', 1) + hbLight(40, 52, '#ff5a5f', .3) + hbLight(32, 22, '#ffd54a', .8) }
+  };
+  const HB_LIST = Object.keys(HB).map(k => [k, HB[k].label, !!HB[k].closed]);
+  const hbThemeFor = n => { n = String(n || ''); const f = [[/new year/i, 'newyear'], [/martin luther/i, 'mlk'], [/presidents/i, 'presidents'], [/good friday/i, 'goodfriday'], [/memorial/i, 'memorial'], [/juneteenth/i, 'juneteenth'], [/independence/i, 'july4'], [/labor/i, 'labor'], [/thanksgiving/i, 'thanksgiving'], [/christmas/i, 'christmas']].find(x => x[0].test(n)); return f ? f[1] : ''; };
+  // ----- VERSION 2 of every banner (HB2). Same keys as HB. Each entry replaces the version-1 look of that holiday (title / tag / bg / fx / art); label and closed always come from HB.
+  // Which version shows is picked by hbVersion(): it alternates by year and by holiday, so the two looks rotate on their own (see note 37 in index.html).
+  const hbGlass = (x, y, r) => '<g transform="translate(' + x + ' ' + y + ') rotate(' + r + ')"><path d="M-7-22h14l-1.5 17a5.5 5.5 0 0 1-11 0z" fill="#fff3c4" opacity=".92"/><path d="M-6-14h12l-.8 9.4a5.2 5.2 0 0 1-10.4 0z" fill="#ffd54a"/><path d="M0 0v14M-6 15h12" stroke="#fff3c4" stroke-width="2" stroke-linecap="round"/></g>';
+  const HB2 = {
+    newyear:{ title:'Cheers to the New Year', tag:'A fresh page and a clean slate. Trade the plan.', bg:'linear-gradient(135deg,#06141f,#0b3a4a 55%,#b8902a)',
+      fx:['up', ['#ffd54a', '#fff', '#7fe3ff'], 20, [2, 4]],
+      art:hbGlass(23, 36, 18) + hbGlass(41, 36, -18) + hbLight(32, 10, '#fff', 0) + hbLight(9, 20, '#ffd54a', .8) + hbLight(56, 22, '#fff', 1.3) },
+    mlk:{ title:'Martin Luther King Jr. Day', tag:'A day of service, reflection and hope.', bg:'linear-gradient(135deg,#1c1030,#3d2a6d 55%,#e08a3c)',
+      fx:['tw', ['#ffd9a0', '#fff', '#ffb347'], 12, [2, 4]],
+      art:'<ellipse class="pl" cx="32" cy="22" rx="14" ry="16" fill="#ffd166" opacity=".18"/><path class="pl" d="M32 8c5 6 7 10 7 14a7 7 0 0 1-14 0c0-4 2-8 7-14z" fill="#ffb347"/><path d="M32 15c2.6 3.2 3.6 5.4 3.6 7.4a3.6 3.6 0 0 1-7.2 0c0-2 1-4.2 3.6-7.4z" fill="#fff3c4"/><rect x="26" y="30" width="12" height="26" rx="2" fill="#f4ead2"/><path d="M26 34h12" stroke="#d9c9a0" stroke-width="1.5"/><rect x="20" y="56" width="24" height="4" rx="2" fill="#c98a1b"/><path d="M32 29v3" stroke="#3a2a1a" stroke-width="1.6" stroke-linecap="round"/>' },
+    presidents:{ title:'Happy Presidents\u2019 Day', tag:'Rest, reflect, and get ready for the next session.', bg:'linear-gradient(135deg,#1a1a2e,#2a3a6b 50%,#b8860b)',
+      fx:['tw', ['#fff', '#ffe29a', '#bcd3ff'], 14, [3, 5]],
+      art:'<rect x="6" y="54" width="52" height="5" rx="1.5" fill="#e8ecf5"/><rect x="9" y="49" width="46" height="5" fill="#cfd6e6"/><g fill="#f5f7fb"><rect x="12" y="31" width="5" height="18"/><rect x="21" y="31" width="5" height="18"/><rect x="30" y="31" width="5" height="18"/><rect x="39" y="31" width="5" height="18"/><rect x="48" y="31" width="4" height="18"/></g><rect x="8" y="26" width="48" height="5" fill="#e8ecf5"/><path d="M16 26a16 14 0 0 1 32 0z" fill="#f5f7fb"/><rect x="28" y="8" width="8" height="6" rx="1" fill="#cfd6e6"/><circle class="pl" cx="32" cy="4.5" r="2.6" fill="#ffd54a"/>' },
+    goodfriday:{ title:'A Peaceful Good Friday', tag:'A quiet day. Rest well.', bg:'linear-gradient(135deg,#10161f,#2b3a55 60%,#8a6d3b)',
+      fx:['tw', ['#ffe8c2', '#fff'], 8, [2, 4]],
+      art:'<g class="pl"><path d="M26 40C20 30 22 18 31 11C31 22 33 31 36 40z" fill="#cdd8ee"/><path d="M10 46C16 47 24 46 31 42C38 39 44 40 49 36L51 38C50 44 43 50 34 51C25 52 17 50 10 46z" fill="#fff"/><path d="M31 42C27 30 34 16 49 9C47 22 44 33 41 41z" fill="#f4f7fd"/><circle cx="50" cy="33" r="5" fill="#fff"/><path d="M54.5 32l5 1.8-5 1.6z" fill="#f2a516"/><circle cx="51.6" cy="32" r=".9" fill="#1b2438"/></g><path d="M57 36c3 5 1 10-5 13" stroke="#6fbf73" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M58 41c3-1 5-3 5-5-3 0-5 2-5 5zM55 46c-3-1-5 0-6 2 3 1 5 0 6-2z" fill="#6fbf73"/>' + hbLight(10, 14, '#fff', 0) + hbLight(56, 14, '#ffe8c2', .9) + hbLight(6, 34, '#fff', 1.4) },
+    memorial:{ title:'Memorial Day', tag:'With gratitude for their service and sacrifice.', bg:'linear-gradient(135deg,#101a2b,#233a5e 55%,#8b1e2d)',
+      fx:['tw', ['#fff', '#ffd9de', '#9ec1ff'], 12, [3, 5]],
+      art:'<g class="pl">' + [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(n => '<ellipse cx="32" cy="12" rx="4" ry="8" fill="#3f7d3a" transform="rotate(' + (n * 30) + ' 32 32)"/>').join('') + [15, 75, 135, 195, 255, 315].map(a => '<circle cx="32" cy="9" r="2.2" fill="#d62828" transform="rotate(' + a + ' 32 32)"/>').join('') + '</g><path d="M32 54l-8 7M32 54l8 7" stroke="#d62828" stroke-width="3.2" stroke-linecap="round"/><circle cx="32" cy="54" r="3.2" fill="#d62828"/>' },
+    juneteenth:{ title:'Happy Juneteenth', tag:'Celebrating freedom and joy.', bg:'linear-gradient(135deg,#3a0a1a,#8b1d2c 50%,#1d6b45)',
+      fx:['dn', ['#ffd54a', '#fff', '#c8102e', '#2e9e5b'], 18, [4, 7], 'cf'],
+      art:'<circle class="pl" cx="32" cy="32" r="28" fill="#ffd54a" opacity=".16"/><polygon class="pl" points="' + [0,1,2,3,4,5,6,7,8,9].map(i => { const r = i % 2 ? 8.4 : 21, a = (-90 + i * 36) * Math.PI / 180; return (32 + r * Math.cos(a)).toFixed(1) + ',' + (33 + r * Math.sin(a)).toFixed(1); }).join(' ') + '" fill="#ffd54a" stroke="#fff3c4" stroke-width="1.4" stroke-linejoin="round"/>' + hbLight(8, 12, '#fff', .2) + hbLight(57, 12, '#f7c948', .9) + hbLight(55, 54, '#fff', 1.4) + hbLight(8, 52, '#f7c948', .6) },
+    july4:{ title:'Happy Fourth of July', tag:'Enjoy the fireworks. See you at the next open.', bg:'linear-gradient(135deg,#0a0f2c,#1b2a78 50%,#b3202f)',
+      fx:['bu', ['#ffd54a', '#fff', '#ff4d5e', '#4da3ff', '#ffd54a'], 5, [5, 5]],
+      art:'<g class="tl"><path d="' + hbRays(20, 24, 4, 13, 8, 0, 360) + '" stroke="#ff4d5e" stroke-width="2.4" stroke-linecap="round"/></g><g class="tl" style="animation-delay:.6s"><path d="' + hbRays(44, 18, 3, 11, 8, 22, 360) + '" stroke="#8ec5ff" stroke-width="2.4" stroke-linecap="round"/></g><g class="tl" style="animation-delay:1.1s"><path d="' + hbRays(38, 46, 4, 13, 10, 10, 360) + '" stroke="#ffd54a" stroke-width="2.4" stroke-linecap="round"/></g><circle cx="20" cy="24" r="2" fill="#fff"/><circle cx="44" cy="18" r="1.6" fill="#fff"/><circle cx="38" cy="46" r="2" fill="#fff"/>' },
+    labor:{ title:'Happy Labor Day', tag:'Hard work, patience and discipline. Enjoy the break.', bg:'linear-gradient(135deg,#1c1c24,#3b3f5c 55%,#d17a22)',
+      fx:['tw', ['#ffd166', '#fff', '#ffb347'], 12, [2, 4]],
+      art:'<g class="pl"><path d="M10 42a22 22 0 0 1 44 0z" fill="#f5c431"/><rect x="27" y="14" width="10" height="28" rx="3" fill="#e0a800"/><rect x="6" y="42" width="52" height="7" rx="3.5" fill="#f5c431"/><path d="M16 38a17 17 0 0 1 8-12" stroke="#fff3b0" stroke-width="2.4" stroke-linecap="round" fill="none" opacity=".7"/></g>' },
+    thanksgiving:{ title:'Happy Thanksgiving', tag:'Thankful for the wins, the lessons and this community.', bg:'linear-gradient(135deg,#2b1a0e,#7a2e12 55%,#e08a1d)',
+      fx:['dn', ['#b5451b', '#e8a33d', '#8a5a2b', '#d9661a'], 12, [7, 12], 'lf'],
+      art:'<g class="pl"><ellipse cx="32" cy="38" rx="23" ry="18" fill="#d9661a"/><ellipse cx="21" cy="38" rx="11" ry="17" fill="#e8761a"/><ellipse cx="43" cy="38" rx="11" ry="17" fill="#e8761a"/><ellipse cx="32" cy="38" rx="8.5" ry="18" fill="#f08a2a"/><rect x="29" y="12" width="6" height="10" rx="2.4" fill="#5a7d2a"/><path d="M35 17c6-5 11-3 12 0-5 3-9 3-12 0z" fill="#6f9a33"/></g>' },
+    christmas:{ title:'Merry Christmas', tag:'Peace, rest and good company.', bg:'linear-gradient(135deg,#3a0d14,#7b1b2a 55%,#1f6b45)',
+      fx:['dn', ['#fff', '#ffe9c2', '#e8f4ff'], 24, [2, 5]],
+      art:'<path d="M32 2v10" stroke="#f3d27a" stroke-width="1.6"/><rect x="27" y="10" width="10" height="7" rx="2" fill="#f3b83a"/><g class="pl"><circle cx="32" cy="40" r="21" fill="#d62839"/><path d="M12 36q20 12 40 0" stroke="#ffd54a" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M13 44q19 10 38 0" stroke="#ffd54a" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8"/><path d="M20 28a14 14 0 0 1 9-8" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".55"/></g>' + hbLight(54, 16, '#fff', 0) + hbLight(8, 48, '#ffd54a', .9) + hbLight(52, 56, '#fff', .4) }
+  };
+  // mode: 'rotate' (default, the two looks alternate), 'a' = always version 1, 'b' = always version 2. day = 'YYYY-MM-DD'. Returns 0 or 1.
+  // Rotation = (year + the holiday's place in the list) % 2: everybody sees the same version on the same day, a holiday flips every year, and neighbouring holidays differ in the same year.
+  const hbVersion = (k, day, mode) => mode === 'a' ? 0 : mode === 'b' ? 1 : ((parseInt(String(day || '').slice(0, 4), 10) || 0) + Math.max(0, Object.keys(HB).indexOf(k))) % 2;
+  const hbLook = (k, v) => { const a = HB[k]; return a && (v === 1 && HB2[k] ? Object.assign({}, a, HB2[k]) : a); };
+  const hbTitle = (k, n, v) => /christmas eve/i.test(n) ? 'Merry Christmas Eve' : /day after thanksgiving/i.test(n) ? 'Enjoy the long weekend' : /independence day eve/i.test(n) ? 'Happy Independence Day Eve' : hbLook(k, v).title;
+  function hbHtml(k, o){   // o = { title, sub, compact, v }   (v: 0 = version 1, 1 = version 2)
+    o = o || {}; const v = o.v === 1 ? 1 : 0, t = hbLook(k, v); if(!t) return '';
+    const ti = hbEsc(o.title || t.title), art = '<svg class="hb-art" viewBox="0 0 64 64" aria-hidden="true">' + t.art + '</svg>';
+    return '<div class="hb hb-' + k + ' v' + (v + 1) + (o.compact ? ' c' : '') + '" style="--hbbg:' + t.bg + '" role="region" aria-label="Holiday greeting">' + hbFx(t.fx, Object.keys(HB).indexOf(k) + 1 + v * 50) + art + '<div class="hb-t"><b>' + ti + '</b><span class="tg">' + hbEsc(t.tag) + '</span><span>' + hbEsc(o.sub || '') + '</span></div>' + art.replace('class="hb-art"', 'class="hb-art r"') + '</div>';
+  }
+  const holToday = () => { const q = {}; new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date()).forEach(x => { q[x.type] = x.value; }); return q.year + '-' + q.month + '-' + q.day; };
+  const holHoursSub = h => h && h.early ? 'The futures market trades until ' + h.closes + ' today. Log your trades by ' + h.logs + '; the board opens at ' + h.board + '.' : 'The futures market is open today.';
+  function holBannerFor(day){   // today's banner (or null): { k: look, name, v: version 0/1, sub }
+    const closedName = HOL.map[day], e = HOL.early[day], name = closedName || (e && e.name) || ''; if(!name) return null;
+    const k = hbThemeFor(name); if(!k) return null;
+    if(closedName ? !HB_ON_CLOSED : (!HB_EVES && /eve$|after thanksgiving/i.test(name))) return null;
+    return { k:k, name:name, v:hbVersion(k, day, HB_VERSION), sub:closedName ? 'The market is closed today.' : holHoursSub(holHours(day)) };
+  }
+  function holBannerHtml(compact){   // the admin's preview (HOL.bprev) wins over the real banner
+    if(!current()) return '';
+    const b = HOL.bprev || holBannerFor(holToday()); if(!b) return '';
+    return hbHtml(b.k, { title:hbTitle(b.k, b.name, b.v), sub:b.sub, v:b.v, compact:compact });
+  }
   const HOL_ART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10.5h17"/><path d="M12 12.4l.95 2 2 .95-2 .95-.95 2-.95-2-2-.95 2-.95z" fill="currentColor" stroke-width="1"/></svg>';
   const HOL_STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.6 8.4L23 12l-8.4 2.6L12 23l-2.6-8.4L1 12l8.4-2.6z"/></svg>';
   const HOL_COPY = [   // [matches the holiday name, title, message]
@@ -7550,7 +7734,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       '<span class="hol-art">' + HOL_ART + '</span><div class="hol-main"><span class="hol-kicker"><i></i>Market closed</span><h3 class="hol-title">' + esc(c.title) + '</h3>' +
       '<p class="hol-msg">' + esc(c.msg) + ' Markets are closed for ' + esc(i.holidayName) + '.</p><p class="hol-tip">' + esc(tip) + '</p>' +
       '<div class="hol-facts">' + chip('Closed', homeLabel(i.holidayDay, true)) + chip('Trading resumes', holEt(i.reopensAt, { weekday:'long' }) + ' at 6:00 PM ET') +
-      chip('Next board', holEt(i.boardAt, { weekday:'short', month:'short', day:'numeric' }) + ' at 6:00 PM ET') + '</div></div></div>';
+      chip('Next board', holEt(i.boardAt, { weekday:'short', month:'short', day:'numeric' }) + ' at ' + holEtClock(i.boardAt)) + '</div></div></div>';
   }
   const holWhen = i => (i.upcomingIn === 1 ? 'tomorrow, ' : 'on ') + homeLabel(i.upcomingDay);
   function holNoteHtml(i){
@@ -7564,7 +7748,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const hb = $('#hm-hol'), sb = $('#st-hol'); if(!hb || !sb) return;
     const i = holView(), put = (box, html) => { if(box._k !== html){ box._k = html; box.innerHTML = html; } };
     const homeNow = !HOME.day || HOME.day === HOME.latest, stNow = !STATS.day || STATS.day === STATS.latest;   // the card is about right now: not shown while looking at an older day
-    const draw = (now, compact) => { if(!i || !now) return ''; const body = i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : ''; return body ? (i.preview ? HOL_PREV_BAR : '') + body : ''; };
+    const draw = (now, compact) => { if(!now) return ''; const bn = holBannerHtml(compact), body = !i ? '' : i.closed ? holCardHtml(i, compact) : i.upcomingDay ? holNoteHtml(i) : ''; return (bn || body) && ((i && i.preview) || HOL.bprev) ? HOL_PREV_BAR + bn + body : bn + body; };   // banner on top, then the Holiday card / heads-up line
     put(hb, draw(homeNow, false)); put(sb, draw(stNow, true));
     $('#page-home').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && homeNow);
     $('#page-stats').classList.toggle('hol-only', HOL_HIDE_BOARD && !!i && i.closed && stNow);
@@ -7584,7 +7768,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     }, Math.min(ms + Math.random() * 20000, 2147000000));   // a little jitter so every phone does not ask in the same second
   }
   async function holLoad(force){
-    if(!current() || !Backend.ready){ HOL.info = null; HOL.map = {}; HOL.until = 0; HOL.preview = null; HOL.acked = {}; clearTimeout(HOL.timer); holRender(); return null; }
+    if(!current() || !Backend.ready){ HOL.info = null; HOL.map = {}; HOL.early = {}; HOL.until = 0; HOL.preview = null; HOL.bprev = null; HOL.acked = {}; clearTimeout(HOL.timer); holRender(); return null; }
     if(!force && HOL.info && Date.now() < HOL.until) return HOL.info;
     if(!force && Date.now() < HOL.retry) return HOL.info;
     if(HOL.p) return HOL.p;
@@ -7592,8 +7776,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       const r = await Backend.marketHolidayInfo();
       if(r.error || !r.info){ HOL.retry = Date.now() + 600000; return HOL.info; }   // e.g. the SQL section 46 is not installed yet: weekends still work, try again in 10 minutes
       const was = HOL.info; HOL.info = r.info; HOL.at = Date.now(); HOL.map = {}; r.info.holidays.forEach(x => { if(x.day) HOL.map[x.day] = x.name; });
+      HOL.early = {}; (r.info.earlyCloses || []).forEach(x => { if(x.day) HOL.early[x.day] = x; });
       const vu = r.info.validUntil ? Date.parse(r.info.validUntil) : NaN; HOL.until = vu > Date.now() ? vu : Date.now() + (vu > 0 ? 15000 + Math.random() * 15000 : 300000);   // no valid_until (older SQL): keep the answer 5 minutes; a valid_until already past means this phone's clock runs ahead of the server: ask again in about 20 seconds
-      holSchedule(); holRender();
+      holSchedule(); holRender(); holHoursRedraw();   // the hours line on Home / Stats may need the early-close list that just arrived
       if(was && (was.closed !== r.info.closed || was.holidayDay !== r.info.holidayDay)){ if(!$('#page-home').hidden) loadHome(true); if(!$('#page-stats').hidden) loadStats(true); }   // the market just closed or reopened
       return r.info;
     } finally { HOL.p = null; } })();
@@ -7608,18 +7793,18 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }
   $('#hm-date')._calRules = holCalRule; $('#st-date')._calRules = holCalRule;
   // ----- Holiday Card Preview (Settings -> Admin tools, admins only; SQL admin_holiday_preview, section 46). Draws a pretend Holiday card / heads-up line on Home + Stats for this admin only. Nothing is saved. -----
-  const HOL_PICKS = [['', 'Random holiday'], ['New Year', 'New Year\u2019s Day'], ['Martin Luther', 'Martin Luther King Jr. Day'], ['Presidents', 'Presidents\u2019 Day'], ['Good Friday', 'Good Friday'], ['Memorial', 'Memorial Day'],
-    ['Juneteenth', 'Juneteenth'], ['Independence', 'Independence Day'], ['Labor', 'Labor Day'], ['Thanksgiving', 'Thanksgiving Day'], ['Christmas', 'Christmas Day']];
+  const HOL_PICKS = [['', 'Random holiday'], ['New Year', 'New Year\u2019s Day'], ['Good Friday', 'Good Friday'], ['Christmas', 'Christmas Day']];   // only FULL closures make a Holiday card (SQL section 49: the other holidays are short trading sessions)
   function holPreviewRedraw(){
     holRender();
     if(HOME._sa && (!HOME.day || HOME.day === HOME.latest)) homeSub(HOME._sa[0], HOME._sa[1]);   // the line under the Home board mentions the holiday too
     const el = $('#hol-status'), p = HOL.preview; if(!el) return;
-    ['#hol-stop', '#hol-view-home', '#hol-view-stats'].forEach(q => { $(q).disabled = !p; });
+    ['#hol-stop', '#hol-view-home', '#hol-view-stats'].forEach(q => { $(q).disabled = !p && !HOL.bprev; });
     el.textContent = !p ? 'No preview showing.'
       : p.closed ? 'Showing the ' + p.holidayName + ' card (' + homeLabel(p.holidayDay) + ') on Home and Stats' + (p.picked && p.picked !== p.holidayName ? ', using the real ' + p.picked + ' dates' : '') + '. Only you can see it.'
       : 'Showing the heads-up line for ' + p.upcomingName + ', ' + holWhen(p) + ', on Home and Stats' + (p.picked && p.picked !== p.upcomingName ? ', using the real ' + p.picked + ' dates' : '') + '. Only you can see it.';
+    if(HOL.bprev) el.textContent = (p ? el.textContent + ' ' : '') + 'Showing the ' + HOL.bprev.label + ' greeting banner (version ' + (HOL.bprev.v + 1) + ') on Home and Stats. Only you can see it.';
   }
-  function holPreviewStop(){ HOL.preview = null; holPreviewRedraw(); }
+  function holPreviewStop(){ HOL.preview = null; HOL.bprev = null; holPreviewRedraw(); }
   [$('#hm-hol'), $('#st-hol')].forEach(b => b.addEventListener('click', e => { if(e.target.closest('[data-hol="stop"]')) holPreviewStop(); }));
   if($('#hol-card')){
     $('#hol-pick').innerHTML = HOL_PICKS.map(x => '<option value="' + esc(x[0]) + '">' + esc(x[1]) + '</option>').join('');
@@ -7631,6 +7816,16 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       if(r.error || !r.info){ formError('hol-error', r.error ? r.error.message : 'No preview came back.', 'Can\u2019t generate'); return; }
       r.info.tipSeed = Math.floor(Math.random() * HOL_TIPS.length);   // a random encouragement line too
       HOL.preview = r.info; holPreviewRedraw();
+    });
+    // Greeting Banner Preview: pure drawing, no SQL. [look key, name, label, full closure?, hours kind]; eves are the 1:15 PM ET early closes, the rest of the open days are the 1:00 PM ET short sessions.
+    const HB_PICKS = HB_LIST.map(x => [x[0], x[1], x[1], x[2], x[2] ? '' : 'short']).concat([['christmas', 'Christmas Eve', 'Christmas Eve', false, 'eve'], ['july4', 'Independence Day Eve', 'Independence Day Eve', false, 'eve'], ['thanksgiving', 'Day After Thanksgiving', 'Day After Thanksgiving', false, 'eve']]);
+    const HB_HOURS = { short:{ early:'x', closes:'1:00 PM ET', logs:'1:55 PM ET', board:'2:00 PM ET' }, eve:{ early:'x', closes:'1:15 PM ET', logs:'2:10 PM ET', board:'2:15 PM ET' } };
+    $('#hb-pick').innerHTML = HB_PICKS.map((x, n) => '<option value="' + n + '">' + esc(x[1]) + '</option>').join('');
+    $('#hb-go').addEventListener('click', () => {
+      const x = HB_PICKS[+$('#hb-pick').value]; if(!x) return;
+      const v = hbVersion(x[0], holToday(), $('#hb-ver').value);
+      HOL.bprev = { k:x[0], name:x[1], label:x[2], v:v, sub:x[3] ? 'The market is closed today.' : holHoursSub(HB_HOURS[x[4]]) };
+      holPreviewRedraw();
     });
     $('#hol-stop').addEventListener('click', holPreviewStop);
     $('#hol-view-home').addEventListener('click', () => showPage('home'));
@@ -7877,12 +8072,15 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function homeSub(count, span){   // span = highest place shown; larger than count when a deleted trade left its number empty
     HOME._sa = [count, span];
     const best = HOME.board === 'best', sym = HOME.symbol ? HOME.symbol + ' ' : '', gap = count && span > count;
-    let t = 'Trading day ' + homeLabel(HOME.day, true) + ', closed 5:00 PM ET. ';
+    const hh = holHours(HOME.day);
+    let t = 'Trading day ' + homeLabel(HOME.day, true) + ', closed ' + hh.closes + (hh.early ? ' (early close)' : '') + '. ';
     if(count) t += 'Showing the ' + (count === 1 ? 'only ' + sym + (best ? 'winning trade' : 'losing trade') : (count < HOME_TOP && !gap ? count : 'top ' + (gap ? span : count)) + ' ' + (best ? 'best ' : 'worst ') + sym + 'trades') + ', ranked by ' + (best ? 'biggest gain' : 'biggest loss') + ' in points' + (gap ? ' (a deleted trade keeps its place empty)' : '') + '. ';
     if(HOME.day === HOME.latest){
       const hv = holView(), hi = hv && hv.closed ? hv : null;   // the admin's preview counts here too
-      t += hi ? 'Markets are closed for ' + hi.holidayName + '. This board stays up until the next trading day ends: the new board opens ' + holEt(hi.boardAt, { weekday:'long' }) + ' at 6:00 PM ET.'
-              : 'Import your trades by 5:55 PM ET. The board updates at 6:00 PM ET each trading day.';
+      const nx = dkNextTrading(HOME.latest), nh = holHours(nx);   // the next trading day's hours (it may be an early-close day)
+      t += hi ? 'Markets are closed for ' + hi.holidayName + '. This board stays up until the next trading day ends: the new board opens ' + holEt(hi.boardAt, { weekday:'long' }) + ' at ' + holEtClock(hi.boardAt) + '.'
+              : nh.early ? 'The next trading day (' + homeLabel(nx) + ') is an early close (' + nh.early + '): import your trades by ' + nh.logs + '. Its board opens at ' + nh.board + '.'
+              : 'Import your trades by ' + nh.logs + '. The board updates at ' + nh.board + ' each trading day.';
     }
     $('#hm-sub').innerHTML = (HOME.note ? '<span class="hm-note">' + esc(HOME.note) + ' </span>' : '') + '<span class="hm-desc">' + esc(t) + '</span>';
   }
@@ -8305,9 +8503,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function stSyncBar(){
     const inp = $('#st-date'); inp.max = STATS.latest || ''; inp.value = STATS.day || '';
     $('#st-next').disabled = !STATS.day || !STATS.latest || STATS.day >= STATS.latest; $('#st-latest').disabled = !STATS.day || STATS.day === STATS.latest;
-    const n = $('#st-note'), lbl = STATS.day ? homeLabel(STATS.day, true) : '';
-    n.innerHTML = (STATS.note ? '<span class="hm-note">' + esc(STATS.note) + ' </span>' : '') + '<span class="st-desc">' + esc((lbl ? 'Trading day ' + lbl + '. ' : '') + 'When trades were opened during the trading day, in Eastern Time (ET). The day runs from the 6:00 PM ET open to the 5:00 PM ET close.' +
-      (STATS.day && STATS.day === STATS.latest ? ' It updates at 6:00 PM ET each trading day.' : '') + ' Tap a bar for details.') + '</span>';
+    const n = $('#st-note'), lbl = STATS.day ? homeLabel(STATS.day, true) : '', sh = holHours(STATS.day), sn = holHours(STATS.latest ? dkNextTrading(STATS.latest) : null);
+    n.innerHTML = (STATS.note ? '<span class="hm-note">' + esc(STATS.note) + ' </span>' : '') + '<span class="st-desc">' + esc((lbl ? 'Trading day ' + lbl + '. ' : '') + 'When trades were opened during the trading day, in Eastern Time (ET). The day runs from the 6:00 PM ET open to the ' + sh.closes + ' close' + (sh.early ? ' (early close)' : '') + '.' +
+      (STATS.day && STATS.day === STATS.latest ? (sn.early ? ' The next board opens at ' + sn.board + ' (early-close day).' : ' It updates at ' + sn.board + ' each trading day.') : '') + ' Tap a bar for details.') + '</span>';
     holRender();
   }
   function stNewDay(){ STATS.sum = null; STATS.sumSym = undefined; STATS.sumHtml = null; STATS.sides = null; STATS.sideSym = undefined; loadStats(); }   // everything is for the old day: start over
@@ -8897,7 +9095,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const navBtns = [...document.querySelectorAll('.sb-nav button')], pageEls = [...document.querySelectorAll('.page')];
   // Phone top bar (.mtop): the page title replaces the banner; Profile gets a Settings gear on the right, Settings a back arrow to Profile.
   const MT_TITLES = { home:'Home', stats:'Stats', notifications:'Notifications', profile:'Profile', settings:'Settings' };
-  function mobileBar(k){ $('#mt-title').textContent = MT_TITLES[k] || 'Home'; $('#mt-gear').hidden = k !== 'profile'; $('#mt-syms').hidden = k !== 'home'; $('#mt-back').hidden = k !== 'settings'; document.body.dataset.page = k; }
+  function mobileBar(k){ $('#mt-title').textContent = MT_TITLES[k] || 'Home'; $('#mt-gear').hidden = k !== 'profile'; $('#mt-syms').hidden = k !== 'home'; $('#mt-howto').hidden = k !== 'home'; $('#mt-back').hidden = k !== 'settings'; document.body.dataset.page = k; }
   function showPage(k, opts){                        // opts: { back:true, y } = arriving by a back button: slide in from the left and put the scroll spot back
     opts = opts || {};
     if(!pageEls.some(p => p.dataset.page === k)) k = 'home';
@@ -8961,8 +9159,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   // so the person can then use the app freely. Closing the tab before that shows it again next time. It plays once per page load.
   const TOUR = { active:false, step:'', shown:false, tries:0 };
   let tourRaf = 0, tourT0 = 0, tourKey = '', tourSettled = false;
+  const tourBtn = () => { const m = $('#mt-howto'); return m && !m.hidden && m.getClientRects().length ? m : $('#hm-howto'); };   // phone: top bar button, website: the Home bar button
   function tourPlace(now, force){
-    const b = $('#hm-howto'), hole = $('#tourHole'), card = $('#tourCard'), arrow = $('#tourArrow'), cut = $('#tourCut'); if(!b) return;
+    const b = tourBtn(), hole = $('#tourHole'), card = $('#tourCard'), arrow = $('#tourArrow'), cut = $('#tourCut'); if(!b) return;
     const r = b.getBoundingClientRect(); if(!r.width) return;
     const vw = document.documentElement.clientWidth, vh = window.innerHeight, pad = 6;
     const k = Math.min(1, (now - tourT0) / 650), grow = (1 - (1 - Math.pow(1 - k, 3))) * 70;     // the dim closes in on the button during the first 0.65 s
@@ -8987,9 +9186,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     if(TOUR.active || (TOUR.shown && !force)) return;
     if(!force){ const me = current(); if(!me || !me.howtoPending) return; }
     const home = $('#page-home'); if(home && home.hidden) showPage('home');
-    const b = $('#hm-howto');
+    const b = tourBtn();
     if(!b || !b.getBoundingClientRect().width){ if(++TOUR.tries < 24) setTimeout(() => tourStart(force), 250); return; }     // wait for Home to be drawn
-    { const r = b.getBoundingClientRect(); if(r.top < 8 || r.bottom > window.innerHeight - 8) b.scrollIntoView({ block:'center', inline:'nearest' }); }   // scrolling is locked below, so the button must be on screen first
+    { const r = b.getBoundingClientRect(); if(!b.closest('#mtop') && (r.top < 8 || r.bottom > window.innerHeight - 8)) b.scrollIntoView({ block:'center', inline:'nearest' }); }   // scrolling is locked below, so the button must be on screen first
     TOUR.shown = true; TOUR.active = true; TOUR.step = 'spot'; TOUR.test = !!force;
     const t = $('#tour'); t.classList.remove('leaving', 'on'); t.hidden = false; document.documentElement.classList.add('tour-lock');
     tourT0 = performance.now(); tourKey = ''; tourSettled = false; tourPlace(tourT0, true); void t.offsetWidth; t.classList.add('on'); $('#tourHole').focus({ preventScroll:true });
@@ -9000,7 +9199,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     TOUR.active = false; TOUR.step = 'reading';
     const t = $('#tour'); t.classList.add('leaving'); document.documentElement.classList.remove('tour-lock');
     setTimeout(() => { t.hidden = true; t.classList.remove('on', 'leaving'); }, 280);
-    $('#hm-howto').click();                                                       // the real How To window opens
+    openHowTo();                                                                  // the real How To window opens
   }
   function tourFinish(){
     TOUR.step = '';
