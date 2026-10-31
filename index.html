@@ -196,7 +196,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user applies SQL with the Supabase CLI. In a folder on their (cheap, Windows) laptop they keep supabase/migrations/*.sql, and one command, `npx supabase db push`, runs only the migration files the project has not seen yet.
    Their project ref is ckbvxdygagrckbdvemzv. EVERY time you change the database: (1) append the new numbered section to supabase-setup.sql (that file stays the full, current copy; read it before editing any existing function),
    AND (2) write that same section as a NEW migration file named <14 digit timestamp, later than the last one>_<short_name>.sql, e.g. 20261105120000_profile_privacy.sql, and hand both files back.
-   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52).
+   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52), 20261031120000_profile_trade_rr.sql (53), 20261031180000_profile_moments_by.sql (54).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
 35. MARKET HOLIDAYS (SQL sections 45 + 46, migrations 20261029210000_market_holidays.sql and 20261029230000_holiday_rules.sql): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends
@@ -234,6 +234,11 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    Scoreboard + Last 5 show ONLY the chosen number (pts, or P&L, or R:R); Biggest moments show all three, one per line. Losers are red in every theme. ALL profile trade-card layout lives in ONE block at the END of the stylesheet
    ("PROFILE TRADE CARDS"): add to that block, do not stack new per-size rules above it. LAYOUT CHECK: before handing over UI work, render the pages with a stubbed supabase client in headless Chromium at 360 / 390 / 768 / 1280 px and
    look for overlapping or clipped text (that is how the profile / notification / Home-tile overlaps of section 53 were found). Stats and the import dialog were not covered by that check.
+   CARD-ONLY REFRESH (rule): a filter changes ONLY the card it belongs to. Profile: pfSwapSec(name) swaps one [data-pfsec] card in place (no call, nothing else redrawn, focus kept); renderProfile() of the same profile no longer rebuilds
+   the cards (only buttons / counts / trophy case). Biggest moments has its own Points | P&L | R:R chips (SQL section 54, extras.by.*.moments). PHONE SWIPE: on a phone (max-width 700px) a sideways swipe on a ranking card
+   (data-swipe: Scoreboard, Medals, Biggest moments, Last 5) moves Points -> P&L -> R:R, no wrap, vertical scrolling never triggers it, desktop has no swipe. Home: Winners/Losers, Rank by and symbol = 1 call (loadHomeBoard); picking a day
+   skips the latest-day call. Notifications: a filter seen less than a minute ago with nothing changed is shown from NT.cache (no call). Stats: resolution = 1 call for the chart only, side = no call (already so).
+   Home Losers are red in the dark theme too (the old grey dark rules are overridden at the end of the stylesheet).
    Not done on purpose: Stats Top 3 slides and the trophy picker still use points places; Stats keeps no view memory.
    CALLS: Home first load = latest day + symbols + board + my summary; switching Winners / Losers, Rank by or the symbol = ONE call (loadHomeBoard; the banner is redrawn from HOME.sum). Profile = one call.
    VIEW MEMORY: viewMem (sessionStorage, this visit only, like pageMem) keeps Home's Rank by / Winners-Losers / symbol / pinned day and the profile's Rank by, so a background app reopened by the phone comes back where it was; a fresh open starts clean. No trade data.
@@ -3181,6 +3186,24 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
 .hm-grid .hm-card.r1 .im-badge, .hm-grid .hm-card.r2 .im-badge, .hm-grid .hm-card.r3 .im-badge{ background:rgba(255,255,255,.72); }
 .hm-grid .hm-card.r1 .im-badge.short, .hm-grid .hm-card.r2 .im-badge.short, .hm-grid .hm-card.r3 .im-badge.short{ color:#b3261e; }
 .hm-grid .hm-card.r1 .im-badge.long, .hm-grid .hm-card.r2 .im-badge.long, .hm-grid .hm-card.r3 .im-badge.long{ color:#13703a; }
+/* Ranking cards: swipe sideways on a phone; the new card slides in from the side you swiped toward */
+.pf-sec[data-swipe]{ touch-action:pan-y pinch-zoom; }
+@keyframes pfInR{ from{ opacity:0; transform:translateX(28px); } to{ opacity:1; transform:none; } }
+@keyframes pfInL{ from{ opacity:0; transform:translateX(-28px); } to{ opacity:1; transform:none; } }
+.pf-sec.pf-in-r{ animation:pfInR .22s ease-out; } .pf-sec.pf-in-l{ animation:pfInL .22s ease-out; }
+@media (prefers-reduced-motion:reduce){ .pf-sec.pf-in-r, .pf-sec.pf-in-l{ animation:none; } }
+/* Home Losers are red in the dark theme too (older rules turned the whole Losers board grey / white) */
+html[data-theme="dark"] .hm-grid.worst{ --hz:var(--loss); --hzt:color-mix(in srgb, var(--loss) 8%, transparent); --rimdim:color-mix(in srgb, var(--loss) 18%, transparent); }
+html[data-theme="dark"] .hm-grid.worst .hm-card{ --cc:var(--loss); }
+html[data-theme="dark"] .hm-grid.worst .hm-pts{ color:var(--loss); }
+html[data-theme="dark"] .hm-grid.worst .hm-rr{ color:var(--loss); background:var(--loss-dim); }
+html[data-theme="dark"] .hm-grid.worst .hm-pnl.gain{ color:var(--gain); }
+html[data-theme="dark"] .hm-grid.worst .hm-pnl.loss{ color:var(--loss); }
+html[data-theme="dark"] .hm-grid.worst .hm-card .hm-tag, html[data-theme="dark"] .hm-grid.worst .hm-card.w1 .hm-tag, html[data-theme="dark"] .hm-grid.worst .hm-card.w2 .hm-tag, html[data-theme="dark"] .hm-grid.worst .hm-card.w3 .hm-tag{ color:var(--loss); }
+html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-grid.worst .hm-card.w2, html[data-theme="dark"] .hm-grid.worst .hm-card.w3{ --hz:var(--loss); border-color:color-mix(in srgb, var(--loss) 45%, var(--line-strong)); }
+html[data-theme="dark"] .hm-grid.worst .hm-card.w1 .hm-rank, html[data-theme="dark"] .hm-grid.worst .hm-card.w2 .hm-rank, html[data-theme="dark"] .hm-grid.worst .hm-card.w3 .hm-rank{ color:var(--loss); box-shadow:inset 0 0 0 1.5px var(--loss); }
+html[data-theme="dark"] .im-slot.worst.used, html[data-theme="dark"] .im-badge.worst{ color:var(--loss); background:var(--loss-dim); }
+html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
 </style>
 </head>
 <body>
@@ -5267,9 +5290,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   }
   const pfBoardsOf = (bd, by) => !bd ? null : by === 'pnl' ? bd.pnl : by === 'rr' ? bd.rr : bd;
   function pfBoardsHtml(bd){
-    if(!bd) return '<div class="pf-sec"><h4>Scoreboard</h4><p class="pf-secnote">The scoreboard needs the newest supabase-setup.sql (section 32).</p></div>';
+    if(!bd) return '<div class="pf-sec" data-pfsec="boards"><h4>Scoreboard</h4><p class="pf-secnote">The scoreboard needs the newest supabase-setup.sql (section 32).</p></div>';
     const bo = pfBoardsOf(bd, pfBy) || { best:{ top25:0, high:null }, worst:{ top25:0, high:null } };
-    return '<div class="pf-sec"><div class="pf-sec-top"><h4>Scoreboard</h4>' + pfByChips('pfby', pfBy, 'Scoreboard rank by') + '</div>' +
+    return '<div class="pf-sec" data-pfsec="boards" data-swipe="1"><div class="pf-sec-top"><h4>Scoreboard</h4>' + pfByChips('pfby', pfBy, 'Scoreboard rank by') + '</div>' +
       '<div class="pf-bds">' + pfBoardCard('best', bo.best, pfBy) + pfBoardCard('worst', bo.worst, pfBy) + '</div></div>';
   }
   function pfOpenBoardTrade(btn){
@@ -5288,7 +5311,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   };
   // Each profile card has its OWN Rank by chips (Points | P&L | R:R), all starting on Points; remembered for this visit only.
   const pfByGet = k => { const v = viewMem.get(k); return v === 'pnl' || v === 'rr' ? v : 'points'; };
-  let pfBy = pfByGet('pfby'), pfMedBy = pfByGet('pfmedby'), pfRecBy = pfByGet('pfrecby');   // Scoreboard | Medals | Last 5 board finishes
+  let pfBy = pfByGet('pfby'), pfMedBy = pfByGet('pfmedby'), pfMomBy = pfByGet('pfmomby'), pfRecBy = pfByGet('pfrecby');   // Scoreboard | Medals | Biggest moments | Last 5 board finishes
   const pfByChips = (attr, cur, label) => '<div class="pf-seg" role="group" aria-label="' + label + '">' + [['points', 'Points'], ['pnl', 'P&amp;L'], ['rr', 'R:R']].map(c =>
     '<button type="button" class="pf-chipbtn' + (cur === c[0] ? ' on' : '') + '" data-' + attr + '="' + c[0] + '" aria-pressed="' + (cur === c[0]) + '">' + c[1] + '</button>').join('') + '</div>';
   let pfRec = 'all';                                              // Last 5 board finishes filter: all | best | worst
@@ -5306,14 +5329,14 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   };
   const pfNumsBy = (h, by) => by === 'pnl' ? pfN.pnl(h, true) : by === 'rr' ? pfN.rr(h) : by === 'all' ? pfN.pts(h) + pfN.pnl(h) + pfN.rr(h) : pfN.pts(h);
   const pfWhen = h => h.day ? homeLabel(h.day) : (h.closed ? tdDay(h.closed) : '');
-  function pfTradeBtn(key, h, lead){
+  function pfTradeBtn(key, h, lead, by){
     const when = pfWhen(h);
     return '<button type="button" class="pf-bd-top" data-pfx="' + esc(key) + '" aria-label="' + esc('Open the trade: ' + pfRoot(h) + (h.side ? ' ' + h.side : '') + (when ? ', ' + when : '')) + '">' + (lead || '') +
-      '<span class="pf-bd-info"><span class="pf-bd-sym">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b>' + (when ? '<small>' + esc(when) + '</small>' : '') + '</span><span class="pf-bd-nums">' + pfNumsBy(h, 'all') + '</span></span>' + PF_ICO.go + '</button>';
+      '<span class="pf-bd-info"><span class="pf-bd-sym">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b>' + (when ? '<small>' + esc(when) + '</small>' : '') + '</span><span class="pf-bd-nums">' + pfNumsBy(h, by) + '</span></span>' + PF_ICO.go + '</button>';
   }
   function pfMoment(key, kind, label, ico, h, none, foot){
     return '<div class="pf-bd ' + kind + '"><div class="pf-bd-head">' + ico + '<span>' + label + '</span></div>' +
-      (h ? pfTradeBtn(key, h) + (foot || '') : '<p class="pf-bd-none">' + none + '</p>') + '</div>';
+      (h ? pfTradeBtn(key, h, '', pfMomBy) + (foot || '') : '<p class="pf-bd-none">' + none + '</p>') + '</div>';
   }
   function pfMedalCard(kind, m){
     const win = kind === 'best';
@@ -5346,8 +5369,49 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       '<b class="im-sym">' + esc(pfRoot(h)) + '</b><span class="pf-tr-side">' + pfSide(h) + '</span><span class="pf-bd-nums">' + pfNums(h) + '</span><small>' + esc(pfWhen(h)) + '</small></button>').join('');
     if(own) for(let i = list.length; i < 3; i++) cards += '<div class="pf-tr empty"><span class="pf-tr-ico">' + PF_ICO.trophy + '</span><small>Empty slot</small></div>';
     if(!cards) cards = '<p class="pf-bd-none">No trophies pinned yet.</p>';
-    return '<div class="pf-sec pf-trsec"><div class="pf-sec-top"><h4>Trophy case</h4>' + (own ? '<button type="button" class="pf-btn ghost pf-mini" data-trophy-edit="1" aria-expanded="' + pfPick.open + '">' + (pfPick.open ? 'Done' : 'Choose trades') + '</button>' : '') + '</div>' +
+    return '<div class="pf-sec pf-trsec" data-pfsec="trophies"><div class="pf-sec-top"><h4>Trophy case</h4>' + (own ? '<button type="button" class="pf-btn ghost pf-mini" data-trophy-edit="1" aria-expanded="' + pfPick.open + '">' + (pfPick.open ? 'Done' : 'Choose trades') + '</button>' : '') + '</div>' +
       '<div class="pf-trophies">' + cards + '</div>' + (own && pfPick.open ? pfPickerHtml(p) : '') + '</div>';
+  }
+  // Each ranking card is its own section (data-pfsec), so a filter tap swaps ONLY that card (pfSwapSec) and a swipe on a phone moves it to the next ranking.
+  const pfMomentsOf = x => (x.by && x.by[pfMomBy] && x.by[pfMomBy].moments) || { bigWin:x.bigWin, bigLoss:x.bigLoss };
+  function pfSecMedals(x){
+    const m = (x.by && x.by[pfMedBy] && x.by[pfMedBy].medals) || x.medals || { best:{ first:0, top3:0 }, worst:{ first:0, top3:0 } };
+    return '<div class="pf-sec" data-pfsec="medals" data-swipe="1"><div class="pf-sec-top"><h4>Medals</h4>' + pfByChips('pfmedby', pfMedBy, 'Medals rank by') + '</div><div class="pf-bds">' + pfMedalCard('best', m.best) + pfMedalCard('worst', m.worst) + '</div></div>';
+  }
+  function pfSecMoments(x){
+    const mo = pfMomentsOf(x), L = x.liked, likedWin = L && L.pnl != null && L.pnl > 0;
+    return '<div class="pf-sec" data-pfsec="moments" data-swipe="1"><div class="pf-sec-top"><h4>Biggest moments</h4>' + pfByChips('pfmomby', pfMomBy, 'Biggest moments rank by') + '</div><div class="pf-bds pf-moments">' +
+      pfMoment('bigWin', 'best', 'Biggest win', LK_SVG(ST_SIDES.long.ico), mo.bigWin, 'No winning trade yet.') +
+      pfMoment('bigLoss', 'worst', 'Biggest loss', LK_SVG(ST_SIDES.short.ico), mo.bigLoss, 'No losing trade yet.') +
+      pfMoment('liked', likedWin ? 'best' : 'worst', 'Most liked trade', likedWin ? LK_UP : LK_STEP, L, 'No likes on a trade yet.',
+        L ? '<div class="pf-bd-count"><b>' + fmtCount(L.likes) + '</b><span>' + (likedWin ? (L.likes === 1 ? 'Flame' : 'Flames') : (L.likes === 1 ? 'Lock-in' : 'Lock-ins')) + '</span></div>' : '') + '</div></div>';
+  }
+  function pfSecRecent(x){
+    const rec = pfRecList(x), seg = (k, l) => '<button type="button" class="pf-chipbtn' + (pfRec === k ? ' on' : '') + '" data-pfrec="' + k + '" aria-pressed="' + (pfRec === k) + '">' + l + '</button>';
+    return '<div class="pf-sec" data-pfsec="recent" data-swipe="1"><div class="pf-sec-top"><h4>Last 5 board finishes</h4>' + pfByChips('pfrecby', pfRecBy, 'Finishes rank by') + '</div><div class="pf-seg pf-seg-row" role="group" aria-label="Filter finishes">' + seg('all', 'All') + seg('best', 'Winners') + seg('worst', 'Losers') + '</div>' + (rec.length ? '<div class="pf-rec">' + rec.map((h, i) => {
+      const win = h.bestPlace >= 1 && h.bestPlace <= 25, place = win ? h.bestPlace : h.worstPlace;
+      return '<button type="button" class="pf-recrow ' + (win ? 'best' : 'worst') + '" data-pfx="recent:' + i + '"><span class="pf-recplace">#' + place + '</span>' +
+        '<span class="pf-rec-info"><span class="pf-rec-main">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b><span class="pf-bd-nums">' + pfNumsBy(h, pfRecBy) + '</span></span><small class="pf-rec-meta">' + esc((win ? 'Winners' : 'Losers') + ' \u00B7 ' + pfWhen(h)) + '</small></span>' + PF_ICO.go + '</button>'; }).join('') + '</div>'
+      : '<p class="pf-bd-none">' + (pfRec === 'best' ? 'No Winners Top 25 finish yet.' : pfRec === 'worst' ? 'No Losers Top 25 finish yet.' : 'No Top 25 finishes yet.') + '</p>') + '</div>';
+  }
+  const PF_SECS = { boards:p => pfBoardsHtml(p.boards), medals:p => p.extras ? pfSecMedals(p.extras) : '', moments:p => p.extras ? pfSecMoments(p.extras) : '', recent:p => p.extras ? pfSecRecent(p.extras) : '', trophies:p => p.extras ? pfTrophyHtml(p, p.extras) : '' };
+  const PF_BYS = { pfby:['boards', () => pfBy, v => { pfBy = v; }], pfmedby:['medals', () => pfMedBy, v => { pfMedBy = v; }], pfmomby:['moments', () => pfMomBy, v => { pfMomBy = v; }], pfrecby:['recent', () => pfRecBy, v => { pfRecBy = v; }] };
+  const PF_ORDER = ['points', 'pnl', 'rr'];
+  // Swaps ONE card in place: no network call, nothing else on the page is touched, the scroll spot stays, the focused chip stays focused. dir = +1 / -1 slides it in from that side.
+  function pfSwapSec(name, dir){
+    const view = $('#pf-view'), p = profileData, build = PF_SECS[name]; if(!view || !p || !build) return;
+    const old = view.querySelector('[data-pfsec="' + name + '"]'); if(!old) return;
+    const tpl = document.createElement('template'); tpl.innerHTML = build(p); const neu = tpl.content.firstElementChild;
+    if(!neu){ old.remove(); return; }
+    const ae = document.activeElement, fk = ae && old.contains(ae) ? (ae.getAttributeNames().find(n => n.indexOf('data-') === 0) || '') : '', fv = fk ? ae.getAttribute(fk) : '';
+    old.replaceWith(neu);
+    if(dir && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)){ const c = dir > 0 ? 'pf-in-r' : 'pf-in-l'; neu.classList.add(c); setTimeout(() => neu.classList.remove(c), 260); }
+    if(fk){ const t = neu.querySelector('[' + fk + '="' + fv + '"]'); if(t) t.focus({ preventScroll:true }); }
+  }
+  function pfSetBy(key, val, viaSwipe){
+    const d = PF_BYS[key]; if(!d || PF_ORDER.indexOf(val) < 0 || d[1]() === val) return;
+    const dir = PF_ORDER.indexOf(val) - PF_ORDER.indexOf(d[1]()); d[2](val); viewMem.set(key, val);
+    pfSwapSec(d[0], dir > 0 ? 1 : -1);
   }
   function pfExtrasHtml(p){
     const x = p.extras;
@@ -5357,26 +5421,12 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       '<div class="pf-stat"><b>' + (since && !isNaN(since) ? esc(since.toLocaleDateString('en', tzOpt({ month:'short', year:'numeric' }))) : '\u2014') + '</b><span>Member since</span></div>' +
       '<div class="pf-stat"><b>' + fmtCount(x.daysPosted) + '</b><span>Days posted</span></div>' +
       '<div class="pf-stat"><b>' + (f ? esc(String(f.root).toUpperCase()) + ' <small>\u00D7' + f.n + '</small>' : '\u2014') + '</b><span>Favorite symbol</span></div></div></div>';
-    const m = (x.by && x.by[pfMedBy] && x.by[pfMedBy].medals) || x.medals || { best:{ first:0, top3:0 }, worst:{ first:0, top3:0 } };
-    const medals = '<div class="pf-sec"><div class="pf-sec-top"><h4>Medals</h4>' + pfByChips('pfmedby', pfMedBy, 'Medals rank by') + '</div><div class="pf-bds">' + pfMedalCard('best', m.best) + pfMedalCard('worst', m.worst) + '</div></div>';
-    const L = x.liked, likedWin = L && L.pnl != null && L.pnl > 0;
-    const moments = '<div class="pf-sec"><h4>Biggest moments</h4><div class="pf-bds pf-moments">' +
-      pfMoment('bigWin', 'best', 'Biggest win', LK_SVG(ST_SIDES.long.ico), x.bigWin, 'No winning trade yet.') +
-      pfMoment('bigLoss', 'worst', 'Biggest loss', LK_SVG(ST_SIDES.short.ico), x.bigLoss, 'No losing trade yet.') +
-      pfMoment('liked', likedWin ? 'best' : 'worst', 'Most liked trade', likedWin ? LK_UP : LK_STEP, L, 'No likes on a trade yet.',
-        L ? '<div class="pf-bd-count"><b>' + fmtCount(L.likes) + '</b><span>' + (likedWin ? (L.likes === 1 ? 'Flame' : 'Flames') : (L.likes === 1 ? 'Lock-in' : 'Lock-ins')) + '</span></div>' : '') + '</div></div>';
-    const rec = pfRecList(x), seg = (k, l) => '<button type="button" class="pf-chipbtn' + (pfRec === k ? ' on' : '') + '" data-pfrec="' + k + '" aria-pressed="' + (pfRec === k) + '">' + l + '</button>';
-    const recent = '<div class="pf-sec"><div class="pf-sec-top"><h4>Last 5 board finishes</h4>' + pfByChips('pfrecby', pfRecBy, 'Finishes rank by') + '</div><div class="pf-seg pf-seg-row" role="group" aria-label="Filter finishes">' + seg('all', 'All') + seg('best', 'Winners') + seg('worst', 'Losers') + '</div>' + (rec.length ? '<div class="pf-rec">' + rec.map((h, i) => {
-      const win = h.bestPlace >= 1 && h.bestPlace <= 25, place = win ? h.bestPlace : h.worstPlace;
-      return '<button type="button" class="pf-recrow ' + (win ? 'best' : 'worst') + '" data-pfx="recent:' + i + '"><span class="pf-recplace">#' + place + '</span>' +
-        '<span class="pf-rec-info"><span class="pf-rec-main">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b><span class="pf-bd-nums">' + pfNumsBy(h, pfRecBy) + '</span></span><small class="pf-rec-meta">' + esc((win ? 'Winners' : 'Losers') + ' \u00B7 ' + pfWhen(h)) + '</small></span>' + PF_ICO.go + '</button>'; }).join('') + '</div>'
-      : '<p class="pf-bd-none">' + (pfRec === 'best' ? 'No Winners Top 25 finish yet.' : pfRec === 'worst' ? 'No Losers Top 25 finish yet.' : 'No Top 25 finishes yet.') + '</p>') + '</div>';
-    return glance + '@@BOARDS@@' + medals + moments + pfTrophyHtml(p, x) + recent;
+    return glance + '@@BOARDS@@' + pfSecMedals(x) + pfSecMoments(x) + pfTrophyHtml(p, x) + pfSecRecent(x);
   }
   function pfExtraTrade(key){
     const x = profileData && profileData.extras; if(!x) return null;
     const m = /^(bigWin|bigLoss|liked|trophy|recent)(?::(\d))?$/.exec(key); if(!m) return null;
-    return m[1] === 'trophy' ? (x.trophies || [])[+m[2]] : m[1] === 'recent' ? pfRecList(x)[+m[2]] : x[m[1]];
+    return m[1] === 'trophy' ? (x.trophies || [])[+m[2]] : m[1] === 'recent' ? pfRecList(x)[+m[2]] : m[1] === 'liked' ? x.liked : pfMomentsOf(x)[m[1]];
   }
   function pfOpenExtra(btn){
     const key = btn.dataset.pfx, h = pfExtraTrade(key); if(!h) return;
@@ -5416,6 +5466,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function renderProfile(full){
     const p = profileData, view = $('#pf-view'); if(!p || !view) return;
     if(!p.isMe && pfPick.open){ pfPick.open = false; pfPick.rows = null; pfPick.seq++; }
+    { const c0 = view.querySelector('.pf-card'); if(c0 && view.dataset.pfid === String(p.id) && full !== true){ pfSync(); pfSwapSec('trophies'); return; } }   // like / follow / counts / trophy picker: no full redraw
     const seed = p.avatarSeed || p.username;
     const likeBtn = p.isMe ? '' : '<button type="button" class="pf-btn ghost like' + (p.profileLiked ? ' on' : '') + '" id="pf-like" aria-pressed="' + !!p.profileLiked + '" aria-label="' + (p.profileLiked ? 'Unlike this profile' : 'Like this profile') + '">' + LK_HEART + '</button>';
     const moreBtn = p.isMe ? '' : '<button type="button" class="pf-btn ghost more" id="pf-more" aria-haspopup="dialog" aria-label="Report or block ' + esc(p.nickname || p.username) + '" title="Report or block"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>';
@@ -5609,14 +5660,25 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     else if(e.target.closest('[data-pfx]')) pfOpenExtra(e.target.closest('[data-pfx]'));
     else if(e.target.closest('[data-trophy-edit]')) pfToggleTrophyPanel();
     else if(e.target.closest('[data-pftrophy]')) pfToggleTrophy(e.target.closest('[data-pftrophy]'));
-    else if(e.target.closest('[data-pfby]')){ pfBy = e.target.closest('[data-pfby]').dataset.pfby; viewMem.set('pfby', pfBy); renderProfile(); }
-    else if(e.target.closest('[data-pfmedby]')){ pfMedBy = e.target.closest('[data-pfmedby]').dataset.pfmedby; viewMem.set('pfmedby', pfMedBy); renderProfile(); }
-    else if(e.target.closest('[data-pfrecby]')){ pfRecBy = e.target.closest('[data-pfrecby]').dataset.pfrecby; viewMem.set('pfrecby', pfRecBy); renderProfile(); }
-    else if(e.target.closest('[data-pfrec]')){ pfRec = e.target.closest('[data-pfrec]').dataset.pfrec; renderProfile(); }
+    else if(e.target.closest('[data-pfby],[data-pfmedby],[data-pfmomby],[data-pfrecby]')){ const c = e.target.closest('[data-pfby],[data-pfmedby],[data-pfmomby],[data-pfrecby]'), k = c.getAttributeNames().find(n => n.indexOf('data-pf') === 0).slice(5); pfSetBy(k, c.getAttribute('data-' + k), false); }
+    else if(e.target.closest('[data-pfrec]')){ const v = e.target.closest('[data-pfrec]').dataset.pfrec; if(pfRec !== v){ pfRec = v; pfSwapSec('recent'); } }
     else if(e.target.closest('[data-pkf-top]')){ pfPick.top25 = !pfPick.top25; pfLoadPick(false); }
     else if(e.target.closest('[data-pk-more]')){ if(!pfPick.loading) pfLoadPick(true); }
     else { const t = e.target.closest('[data-pf]'); if(t) pfOpenDetail(t.dataset.pf); }
   });
+  // PHONE ONLY: swipe a ranking card left / right to move through Points -> P&L -> R:R (no wrap-around). Needs a clear sideways move, so scrolling up and down never triggers it.
+  (function(){
+    const view = $('#pf-view'); let t0 = null;
+    const phone = () => !!(window.matchMedia && matchMedia('(max-width: 700px)').matches);
+    const KEY = { boards:'pfby', medals:'pfmedby', moments:'pfmomby', recent:'pfrecby' };
+    view.addEventListener('touchstart', e => { t0 = null; if(!phone() || e.touches.length !== 1) return; const sec = e.target.closest('.pf-sec[data-swipe]'); if(!sec || e.target.closest('select, input, textarea')) return; t0 = { x:e.touches[0].clientX, y:e.touches[0].clientY, t:Date.now(), sec:sec.dataset.pfsec }; }, { passive:true });
+    view.addEventListener('touchend', e => {
+      if(!t0) return; const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y, name = t0.sec, ok = Date.now() - t0.t < 800 && Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.6; t0 = null;
+      if(!ok || !KEY[name]) return; const d = PF_BYS[KEY[name]], i = PF_ORDER.indexOf(d[1]()) + (dx < 0 ? 1 : -1);
+      if(i >= 0 && i < PF_ORDER.length) pfSetBy(KEY[name], PF_ORDER[i], true);
+    }, { passive:true });
+    view.addEventListener('touchcancel', () => { t0 = null; }, { passive:true });
+  })();
   $('#pf-view').addEventListener('change', e => { const f = e.target.closest && e.target.closest('[data-pkf]'); if(!f) return; pfPick[f.dataset.pkf] = f.value; pfLoadPick(false); });
   // Where the Profile page's back button leads: opening a profile remembers the page (and the scroll spot) you came from. null = back to my own profile.
   let navBack = null;
@@ -7947,7 +8009,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const was = NTP.prefs[k] !== false, want = !was; sw.setAttribute('aria-checked', String(want));
     const r = await Backend.setNotificationPref(k, want);
     if(r.error){ sw.setAttribute('aria-checked', String(was)); showToast('Couldn\u2019t save', r.error.message, 'error'); }
-    else { NTP.prefs[k] = want; NT.stale = true; ntPollBadge(); }   // the list and the bell are rebuilt by SQL with the new choice
+    else { NTP.prefs[k] = want; NT.stale = true; NT.gen++; ntPollBadge(); }   // the list and the bell are rebuilt by SQL with the new choice
     NTP.busy.delete(k);
   });
   let PREF_BUSY = false;   // true while a choice is being saved (the account update fires an auth event that must not start a second reload)
@@ -8044,10 +8106,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     box.innerHTML = tile(homePnlTitle(HOME.day), pfMoney(sum.netPnl, true), sum.netPnl > 0 ? 'gain' : sum.netPnl < 0 ? 'loss' : '') +
       rankTile(sfx ? 'Winners' + sfx : 'Winners Board', bd.best, 'best') + rankTile(sfx ? 'Losers' + sfx : 'Losers Board', bd.worst, 'worst');   // shorter label with P&L / R:R so the symbol chip never cuts it
   }
-  async function loadHome(soft){
+  async function loadHome(soft, keepLatest){
     const seq = ++HOME.seq, ver = HOME.ver, grid = $('#hm-grid'); formError('hm-error', ''); holLoad();
     if(!current() || !Backend.ready){ homeBanner(null, 'out'); grid.innerHTML = homeEmpty('Sign in to see the top trades', 'The best and worst trades of the day show up here.'); return; }
-    const lt = await Backend.latestTradingDay(); if(seq !== HOME.seq) return;
+    const lt = keepLatest && HOME.latest ? { day:HOME.latest } : await Backend.latestTradingDay(); if(seq !== HOME.seq) return;   // picking another day: the latest day is already known
     if(lt.error || !lt.day){ grid.innerHTML = ''; formError('hm-error', (lt.error ? lt.error.message : 'No trading day returned.') + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't load Home"); return; }
     HOME.latest = lt.day; if(HOME.auto || !HOME.day) HOME.day = HOME.latest;
     homeSyncBar(); homeSub(null);
@@ -8086,7 +8148,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     if(!HOME.latest || !/^\d{4}-\d{2}-\d{2}$/.test(k || '')) return homeSyncBar();
     if(dkClosed(k)){ const hn = HOL.map[k]; k = dkPrevTrading(dkAdd(k, 1)); note = (hn ? 'Markets are closed for ' + hn : 'Futures are closed on weekends') + ', so this shows ' + homeLabel(k) + '.'; }
     if(k > HOME.latest){ k = HOME.latest; note = 'That trading day is not logged yet, so this shows the latest one.'; }
-    HOME.day = k; HOME.auto = k === HOME.latest; HOME.note = note || ''; homeMem.save(); loadHome();
+    HOME.day = k; HOME.auto = k === HOME.latest; HOME.note = note || ''; homeMem.save(); loadHome(false, true);
   }
   function homeEnter(){ if(HOME.loaded && !HOME.stale) return; loadHome(); }      // already on screen and nothing changed: just show it
   function refreshHomeIfVisible(){ HOME.ver++; HOME.stale = true; if(!$('#page-home').hidden) homeEnter(); }
@@ -8805,7 +8867,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const NT_PAGE = 30;
   // fresh = id -> { n, t }: how many of a card's events were new when this visit started (t = the newest one), so "New" marks and the highlighted people stay put until you leave.
   // fmap = who I follow (drives the Follow back buttons everywhere on the page); fbBusy = follow requests in flight.
-  const NT = { seq:0, dseq:0, loaded:false, stale:true, items:[], more:false, busy:false, filter:'all', view:'list', y:0, opener:-1, fresh:new Map(), fmap:new Map(), fbBusy:new Set(), unread:0 };
+  const NT = { gen:0, cache:{}, seq:0, dseq:0, loaded:false, stale:true, items:[], more:false, busy:false, filter:'all', view:'list', y:0, opener:-1, fresh:new Map(), fmap:new Map(), fbBusy:new Set(), unread:0 };
   const NT_FILTERS = { all:null, likes:['best_like', 'worst_like', 'profile_like'], followers:['follow'], trades:['followed_trade'], boards:['board_place', 'followed_board'] };
   const NT_EMPTY = {
     all:['No notifications yet', 'Likes, followers and board news show up here.'],
@@ -8925,7 +8987,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     }
     r.items.forEach(ntPrep);                                                                        // what was new when this visit began stays marked until you leave
     const before = ntSig(), wasLoaded = NT.loaded;
-    NT.more = r.items.length > NT_PAGE; NT.items = r.items.slice(0, NT_PAGE); NT.loaded = true; NT.stale = false;
+    NT.more = r.items.length > NT_PAGE; NT.items = r.items.slice(0, NT_PAGE); NT.loaded = true; NT.stale = false; NT.cache[NT.filter] = { items:NT.items.slice(), more:NT.more, gen:NT.gen, t:Date.now() };
     if(!soft || !wasLoaded || before !== ntSig()) ntRender();                                       // a quiet refresh that found nothing new does not redraw (no flicker)
     if(NT.filter === 'all') Backend.markNotificationsSeen().then(x => { if(!x.error) ntBadge(0); });
   }
@@ -9030,7 +9092,11 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   $('#nt-more').addEventListener('click', ntMore);
   $('#nt-back').addEventListener('click', () => ntSetView('list'));
   $('#nt-dprofile').addEventListener('click', () => { if(ntDetailItem) openProfile(ntDetailItem.username); });
-  document.querySelectorAll('.nt-fbtn').forEach(b => b.addEventListener('click', () => { if(NT.filter === b.dataset.f) return; NT.filter = b.dataset.f; ntSyncChips(); ntLoad(false); }));
+  document.querySelectorAll('.nt-fbtn').forEach(b => b.addEventListener('click', () => {
+    if(NT.filter === b.dataset.f) return; NT.filter = b.dataset.f; ntSyncChips();
+    const c = NT.cache[NT.filter]; if(c && NT.loaded && c.gen === NT.gen && Date.now() - c.t < 60000){ NT.seq++; NT.items = c.items.slice(); NT.more = c.more; ntRender(); return; }   // seen a minute ago and nothing changed: no call
+    ntLoad(false);
+  }));
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && NT.view === 'detail' && !$('#page-notifications').hidden && !document.querySelector('.modal-overlay.active')) ntSetView('list'); });
   // Opening the page from the sidebar starts a fresh visit (everything back to the list, filter All, new items marked). Coming back from a profile changes nothing.
   function ntEnter(back){
@@ -9038,8 +9104,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     if(!back){ NT.fresh = new Map(); if(NT.filter !== 'all'){ NT.filter = 'all'; ntSyncChips(); } if(NT.view !== 'list') ntSetView('list', true); }
     ntLoad(NT.loaded);
   }
-  function refreshNotificationsIfVisible(){ NT.stale = true; if(!$('#page-notifications').hidden){ if(NT.view === 'detail') ntSetView('list', true); NT.fresh = new Map(); ntLoad(NT.loaded); } }
-  function ntReset(){ NT.seq++; NT.dseq++; NT.items = []; NT.more = false; NT.loaded = false; NT.stale = true; NT.fresh = new Map(); NT.fmap = new Map(); NT.filter = 'all'; ntSyncChips(); if(NT.view !== 'list') ntSetView('list', true); $('#nt-list').innerHTML = ''; ntBadge(0); }
+  function refreshNotificationsIfVisible(){ NT.stale = true; NT.gen++; if(!$('#page-notifications').hidden){ if(NT.view === 'detail') ntSetView('list', true); NT.fresh = new Map(); ntLoad(NT.loaded); } }
+  function ntReset(){ NT.seq++; NT.dseq++; NT.gen++; NT.cache = {}; NT.items = []; NT.more = false; NT.loaded = false; NT.stale = true; NT.fresh = new Map(); NT.fmap = new Map(); NT.filter = 'all'; ntSyncChips(); if(NT.view !== 'list') ntSetView('list', true); $('#nt-list').innerHTML = ''; ntBadge(0); }
   // The bell count: SQL counts what is newer than the last time the page was opened. Checked after sign-in, when data changes, every minute and when the tab comes back.
   async function ntPollBadge(){
     if(!current() || !Backend.ready){ ntBadge(0); return; }
