@@ -91,16 +91,24 @@ Every change must keep that move cheap:
    points. TIES SHARE A PLACE (SQL section 50, rank() on points alone: 40 40 25 25 10 -> places 1 1 3 3 5; R:R / $ P&L only set the order the cards are drawn in), so a board can show a few more than 25 cards when a tie sits on place 25, and home_board returns tied = how many trades share the card's place (the card shows a small T mark). RANK BY (SQL sections 51 + 52, SUPERSEDES the "points only" sentences that follow in this note): Home has a switch next to Winners / Losers, "Rank by: Points | P&L | R:R" (HOME.by, remembered for the visit in sessionStorage, see note 38). Points is still the default board. The next sentences were written before section 52: medals, profile cards, notifications, the Your Trading Day tiles and the delete lock now read ALL THREE rankings (note 38). Old text: the Your Trading Day tiles, medals, profile Winners / Losers cards, Top 3 notifications and the delete lock only ever read the points places. P&L is a second stored view of the same trades (trades.best_place_pnl / worst_place_pnl, net P&L = pnl - fees, same freeze rules, deleted_ranked_trades.net_pnl keeps gaps), asked through home_board(p_by => 'pnl'). In P&L mode the card's big number is the net P&L and the small line shows points. The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Market holidays: see note 35.
 16. LIKES (SQL section 23): Home cards show a FLAME (Best) or crosshair "lock in" (Worst) chip with a count, double tap likes (the words in the UI are "Flame" and "Lock in"; the SQL names stay thumbs up / lock-in); profiles show flame / lock-in / profile-like totals, each icon in a tinted ring. Colors = --lk-up (cool red, was orange until 2026-10-30) / --lk-lock (cyan) / --lk-heart (pink), set per theme, never green; the flame red is cooler than --loss (warm coral) on purpose, keep them apart. A heart likes a profile. Own trades and profiles cannot be liked.
 17. NOTIFICATIONS PAGE (SQL section 25): cards for Best likes (thumbs up on my winning trades), Worst likes (lock-ins / step-it-up on my losing trades), profile likes, new followers,
-   trades logged by people I follow (only trades logged after I followed), my own board places (#1 to #25 on a symbol's Best / Worst board, from the moment the board is shown) and top 3
-   board finishes by people I follow (boards shown after I followed them). SQL builds the feed from rows that already exist (trade_likes, profile_likes, follows, trades), so a like that is taken back
+   trades logged by people I follow (only trades logged after I followed), my own board places (#1 to #25 on a symbol's Best / Worst board, from the moment the board is shown) and board finishes (places 1 to 25, since SQL section 55; it was the Top 3)
+   by people I follow (boards shown after I followed them, looking back 30 days at most; trade cards also look back 30 days). SQL builds the feed from rows that already exist (trade_likes, profile_likes, follows, trades), so a like that is taken back
    disappears; the only stored thing is when the person last opened the page (notification_state), which drives the "New" markers and the bell count. The browser reads it only through
-   Backend.notifications / notificationPeople / notificationsUnread / markNotificationsSeen / tradeDetail.
+   Backend.notifications / notificationPeople / notificationTrades / notificationsUnread / markNotificationsSeen / tradeDetail.
+   SINCE SQL SECTIONS 56 + 57 (see note 41): flames / lock-ins are ONE card per kind per day, and trades by people I follow are ONE card per trader per trading day ("Alex logged 2 trades"; one trade still reads "logged a new NQ Long trade" and opens it; two or more open a list, SQL notification_trades(), each row opens its trade), and board finishes by people I follow are ONE card per trade, on the ranking where it placed best (tie: Points, P&L, R:R). My own board_place cards stay one per ranking.
    GROUPING happens in SQL: likes on one trade are one card ("Alex and 4 others gave your NQ Long trade a thumbs up"), profile likes and new followers are one card per Eastern-time day.
    WHICH WINDOW OPENS: a single like / followed trade / board card opens the trade in a sub detail view inside the page; a single profile like or follower opens that profile; a GROUPED trade-like card opens the same
    trade with the people who liked it listed underneath; a GROUPED profile-like / follower card opens a people list (no trade to show). Every person row opens their profile and follower rows have Follow back.
    The new-follower card (one person) has a Follow back button too. The view switch is two beats (old pane fades out toward the side you are going, then the new one slides in and its rows stagger in).
    The Profile page's back button returns to the page you came from (navBack: Notifications, Stats, Home ...) with the scroll spot kept, so Back from a person in a people list lands you in that list again.
    The trader search lives at the top of the Profile page (there is no Explore page); the Stats page key is "stats". To add a kind: one branch in notification_feed(), one entry in NT_KINDS and ntSentence() (and NT_FILTERS if it needs a chip).
+41. FEWER, BIGGER NOTIFICATION CARDS (SQL sections 56 + 57, migrations 20261031230000_trade_day_cards_best_board.sql and 20261101000000_notification_cards_merge.sql). notification_feed() and my_notifications() carry tcnt = how many TRADES a card is about;
+   the browser opens a LIST of trades when tcnt > 1 (ntLoadTrades -> SQL notification_trades(kind, user, day), rows open the trade window) and a single trade / people list otherwise.
+   - best_like / worst_like: ONE card per kind per Eastern-time day (nid likes_day:<kind>:<day>); cnt = people, tcnt = trades liked that day. One trade = the old trade + people view (people filtered by the day).
+   - followed_trade: ONE card per trader per trading day (cnt = tcnt = trades). Trades that already have a followed_board card are left out (once the board is shown and the trade is in the Top 25, and the Boards switch is ON).
+   - followed_board: ONE card per trader per trading day (tcnt = trades that made a board; place / board / rank_by = the best finish, tie Points > P&L > R:R, helper trade_best_place()).
+   - board_place (MY trades) is still one card per ranking per trade: see the owner chat before changing it.
+   Notifications For Me (note 19): the followed traders now log two trades on the SAME day, so "logged 2 trades" / "made 2 boards" cards exist; most test trades land in a Top 25 (boards are tiny), so they show up as board cards.
 19. NOTIFICATION TEST DATA (SQL section 27, Settings -> Test Data Generator -> "Notifications For Me", admins only): one press creates 14 fake traders (10 who like / follow me, 4 I follow) and 6 trades on my own
    account, then SQL adds the likes and follows, so every Notifications card exists once and each grouped / single window can be tried. Star trades (huge point moves, GEN_STAR) make sure the board cards appear.
    It is built from the same generator pieces as the rest (genTrade, generateTestData, generateMyTrades); "Remove All Generated" cleans it all up.
@@ -181,7 +189,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    Danger zone (Delete Account), and the Account card at the VERY BOTTOM so Log out [phone only] is the last thing on the page (no email shown, Edit Profile has it; Change password [phone only], Download my data, Log out of all devices, Log out).
    Keep Account last. A new card goes under the heading it belongs to. SCOREBOARD SYMBOLS are NOT in Settings any more: they are a pop up window (#symOverlay, ids #sp-list / #sp-reset kept) opened from Home by #mt-syms (phone top bar,
    top right, shown on Home only, see mobileBar) and #hm-syms (website, in the Home banner; hidden on phones). symSave() sets SYM_DIRTY and the window's close hook redraws Home + Stats once.
-   NOTIFICATION SWITCHES (SQL section 42): five switches (Likes, New followers, Trades by people I follow, My scoreboard places, Top 3 by people I follow), all ON by default, saved on the account (table notification_prefs).
+   NOTIFICATION SWITCHES (SQL section 42): five switches (Likes, New followers, Trades by people I follow, My scoreboard places, Boards by people I follow [was "Top 3 by people I follow"; column followed_boards]), all ON by default, saved on the account (table notification_prefs).
    SQL notification_kind_on() is the one rule; my_notifications() (list) and notifications_unread() (bell) both call it. The browser only draws NT_PREFS and calls Backend.notificationPrefs / setNotificationPref.
    LOG OUT OF ALL DEVICES = Backend.signOutEverywhere() (Supabase signOut scope 'global'; in Nhost it is the sign-out-all call). SUPPORT: set SUPPORT_EMAIL and APP_VERSION (constants beside SUPABASE_URL); Contact support /
    Report a problem open the mail app with the version and device filled in, and stay hidden while SUPPORT_EMAIL is empty.
@@ -196,7 +204,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user applies SQL with the Supabase CLI. In a folder on their (cheap, Windows) laptop they keep supabase/migrations/*.sql, and one command, `npx supabase db push`, runs only the migration files the project has not seen yet.
    Their project ref is ckbvxdygagrckbdvemzv. EVERY time you change the database: (1) append the new numbered section to supabase-setup.sql (that file stays the full, current copy; read it before editing any existing function),
    AND (2) write that same section as a NEW migration file named <14 digit timestamp, later than the last one>_<short_name>.sql, e.g. 20261105120000_profile_privacy.sql, and hand both files back.
-   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52), 20261031120000_profile_trade_rr.sql (53), 20261031180000_profile_moments_by.sql (54).
+   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52), 20261031120000_profile_trade_rr.sql (53), 20261031180000_profile_moments_by.sql (54), 20261031210000_follow_notifications_stats_cache.sql (55), 20261031230000_trade_day_cards_best_board.sql (56), 20261101000000_notification_cards_merge.sql (57).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
 35. MARKET HOLIDAYS (SQL sections 45 + 46, migrations 20261029210000_market_holidays.sql and 20261029230000_holiday_rules.sql): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends
@@ -244,6 +252,14 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    VIEW MEMORY: viewMem (sessionStorage, this visit only, like pageMem) keeps Home's Rank by / Winners-Losers / symbol / pinned day and the profile's Rank by, so a background app reopened by the phone comes back where it was; a fresh open starts clean. No trade data.
    LOGIN RESTORE: Supabase saves the login (persistSession). Startup uses Backend.restoreUser(): no saved login -> login form; saved login but the server unreachable -> "Signing you in..." screen that retries (timer, online, tab shown) and never shows the form;
    only a server rejection (signed_out) or no saved login opens the login gate. If people still see the form every time, check the Supabase dashboard (Auth > Sessions: time-box / inactivity timeout, JWT expiry) and that the app is always opened at the same address.
+39. SCROLL KEEPER (its own script block at the very end of this file, 2026-10-31). Pressing ANY button / chip / switch / dropdown / date box inside a .page must never move the page. Cards are rebuilt after a tap (a filter swaps its card, Home shows skeleton cards, the Trophy case
+   opens its picker), the page gets shorter for a moment, the browser clamps the scroll spot, and the control the person pressed ends up somewhere else. The keeper remembers where the pressed control sits, holds the page's height (min-height) while the redraw happens, and after every change
+   to that page scrolls by exactly the difference; it finds the control again by id or its first data-* attribute. It stops by itself after 1.2 s without changes (8 s max), when the person scrolls, or when the control is not on screen any more (another page / a detail view opened: those set their
+   own scroll spot, see showPage / NT.y / PFD.y). NO per-page code is needed. Rules for new code: inside a redraw never call scrollTo / scrollIntoView (it also scrolls the page) / focus() without { preventScroll:true }; do not clear a container and fill it later when swapping its content is possible
+   (pfSwapSec keeps a ranking card at its old height with min-height so a filter with fewer rows cannot pull the page up). The themed dropdown menu scrolls ITSELF with scrollTop (it used scrollIntoView before). Not checked in a real browser by the author: test Home filters, Stats chips, Notifications chips, Profile Trophy case (Choose trades / Done) and Last 5 board finishes on a phone.
+40. STATS CACHE AND GENERATED TRADES (SQL section 55): the Stats page answers come from stats_cache (5 min on the latest day, 60 min on older days). A Stats page opened before the generator ran used to keep showing "no trades" for the generated days. Now every insert / delete of GENERATED trades
+   (generator, Generate For Me, Notifications For Me, Keep Supabase Awake + clean-up, Remove All Generated incl. the account cascade) empties the cached Stats rows of exactly those trading days (triggers trades_gen_cache_ins / _del). Real users' trades never fire it.
+   The generator makes 6 symbols x the last 5 finished trading days per account (genDays = homeRecentDays(5, latest), holidays and weekends skipped, early closes respected), ranked by refresh_rankings() at the end of generate_test_data.
 -->
 <html lang="en">
 <head>
@@ -2530,6 +2546,8 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .nt-pbtn b{ display:block; font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-pbtn small{ display:block; margin-top:2px; font:500 12.5px var(--font-mono); color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-prow .nt-fb{ margin-right:12px; }
+  .nt-pbtn .nt-ps{ width:42px; height:42px; flex:none; display:grid; place-items:center; border-radius:13px; background:color-mix(in srgb, var(--nc) 14%, var(--surface-2)); color:var(--nc); font:800 12px var(--font-mono); }   /* section 57: symbol tile for my own liked trades */
+  .nt-pbtn small b{ display:inline; font:inherit; font-weight:700; overflow:visible; }   /* section 56: points / P&L inside a day card's trade rows stay on one line */
   #page-notifications.in-detail > .page-head{ display:none; }
   @media (max-width:420px){ .nt-card{ gap:12px; padding:12px 12px 12px 14px; } .has-act .nt-card{ padding-right:6px; } .nt-fb{ margin-right:10px; padding:0 13px; } .nt-dhead{ padding:18px 18px 14px; } .nt-dbody{ padding:2px 18px 4px; } .nt-people{ padding:0 18px 18px; } .nt-dact{ padding:14px 18px 18px; } }
   html[data-theme="light"] .nt-row, html[data-theme="light"] .nt-prow{ background:#fff; box-shadow:none; }
@@ -3950,7 +3968,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       if (i < 0 || i >= items.length) return;
       items.forEach(function(r){ r.row.classList.remove('act'); });
       act = i; items[i].row.classList.add('act');
-      if (scroll) items[i].row.scrollIntoView({ block:'nearest' });
+      if (scroll) { var rr = items[i].row.getBoundingClientRect(), mr = menu.getBoundingClientRect(); if (rr.top < mr.top) menu.scrollTop -= mr.top - rr.top; else if (rr.bottom > mr.bottom) menu.scrollTop += rr.bottom - mr.bottom; }   // scrolls the menu only (scrollIntoView also moved the page)
     }
     function move(dir){
       var i = act; do { i += dir; } while (i >= 0 && i < items.length && items[i].opt.disabled);
@@ -4203,7 +4221,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   document.addEventListener('click', function(e){
     var l = e.target.closest && e.target.closest('label'); if (!l || !l.control || !l.control._btn) return;
     if (e.target.closest('.ui-pick')) return;
-    e.preventDefault(); l.control._btn.focus();
+    e.preventDefault(); l.control._btn.focus({ preventScroll:true });
   });
   document.addEventListener('reset', function(e){
     setTimeout(function(){ e.target.querySelectorAll('.ui-pick').forEach(function(b){ b._sync && b._sync(); }); }, 0);
@@ -4481,10 +4499,14 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
           actorId:r.actor_id, username:r.actor_username || '', nickname:r.actor_nickname || '', avatarSeed:r.actor_avatar_seed || null,
           actors:(Array.isArray(r.actors) ? r.actors : []).map(a => ({ id:a.id, username:a.username || '', nickname:a.nickname || '', avatarSeed:a.avatar_seed || null })), iFollow:!!r.i_follow,
           tradeId:r.trade_id || null, symbol:r.symbol || '', symbolRoot:r.symbol_root || '', side:r.side || '', points:r.points == null ? null : Number(r.points), pnl:r.pnl == null ? null : Number(r.pnl), rr:r.rr == null ? null : Number(r.rr),
-          place:r.place == null ? null : Number(r.place), board:r.board || '', day:r.ref_day || null, rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points' })) }; },
+          place:r.place == null ? null : Number(r.place), board:r.board || '', day:r.ref_day || null, rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points', tradeCount:Number(r.tcnt) || 1 })) }; },
       // everybody inside one grouped card: kind + tradeId (trade likes) or kind + day (profile likes, follows)
       async notificationPeople({ kind, tradeId, day } = {}){ const { data, error } = await sb.rpc('notification_people', { p_kind:kind, p_trade:tradeId || null, p_day:day || null });
         return { error:err(error), people:(data || []).map(r => ({ id:r.actor_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, at:r.created_at, iFollow:!!r.i_follow })) }; },
+      // the trades inside one list card (SQL section 57): kind = the card's kind; userId = the trader (followed_trade / followed_board); day = the card's day
+      async notificationTrades({ kind, userId, day } = {}){ const { data, error } = await sb.rpc('notification_trades', { p_kind:kind, p_user:userId || null, p_day:day });
+        return { error:err(error), trades:(data || []).map(r => ({ id:r.trade_id, symbol:r.symbol || '', symbolRoot:r.symbol_root || '', side:r.side || '', points:r.points == null ? null : Number(r.points), pnl:r.pnl == null ? null : Number(r.pnl), rr:r.rr == null ? null : Number(r.rr), at:r.created_at,
+          place:r.place == null ? null : Number(r.place), board:r.board || '', rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points', likes:r.likes == null ? 0 : Number(r.likes) })) }; },
       async notificationsUnread(){ const { data, error } = await sb.rpc('notifications_unread'); return { error:err(error), count:Number(data) || 0 }; },
       async markNotificationsSeen(){ const { error } = await sb.rpc('mark_notifications_seen'); return { error:err(error) }; },
       async tradeDetail(id){ const { data, error } = await sb.rpc('trade_detail', { p_id:id }); const r = Array.isArray(data) ? data[0] : null;
@@ -5401,8 +5423,10 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   function pfSwapSec(name, dir){
     const view = $('#pf-view'), p = profileData, build = PF_SECS[name]; if(!view || !p || !build) return;
     const old = view.querySelector('[data-pfsec="' + name + '"]'); if(!old) return;
+    const keepH = name === 'trophies' ? 0 : Math.max(old.offsetHeight, parseFloat(old.style.minHeight) || 0);   // a ranking card never gets shorter while this profile is open, so a filter with fewer rows cannot pull the page up (the Trophy case opens and closes, so it is the exception)
     const tpl = document.createElement('template'); tpl.innerHTML = build(p); const neu = tpl.content.firstElementChild;
     if(!neu){ old.remove(); return; }
+    if(keepH) neu.style.minHeight = keepH + 'px';
     const ae = document.activeElement, fk = ae && old.contains(ae) ? (ae.getAttributeNames().find(n => n.indexOf('data-') === 0) || '') : '', fv = fk ? ae.getAttribute(fk) : '';
     old.replaceWith(neu);
     if(dir && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)){ const c = dir > 0 ? 'pf-in-r' : 'pf-in-l'; neu.classList.add(c); setTimeout(() => neu.classList.remove(c), 260); }
@@ -5832,7 +5856,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   const exBox = () => $('#ex-results');
   function exMode(on){ $('#page-profile').classList.toggle('searching', on); exBox().hidden = !on; $('#ex-clear').hidden = !$('#ex-q').value; }
   const exMsg = t => { exBox().innerHTML = '<div class="ex-note">' + esc(t) + '</div>'; };
-  function exClear(focus){ searchSeq++; clearTimeout(searchTimer); $('#ex-q').value = ''; formError('ex-error', ''); exBox().innerHTML = ''; exMode(false); if(focus) $('#ex-q').focus(); }
+  function exClear(focus){ searchSeq++; clearTimeout(searchTimer); $('#ex-q').value = ''; formError('ex-error', ''); exBox().innerHTML = ''; exMode(false); if(focus) $('#ex-q').focus({ preventScroll:true }); }
   async function runSearch(){
     const q = $('#ex-q').value.trim(), seq = ++searchSeq;
     formError('ex-error', '');
@@ -6144,8 +6168,9 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     for(let i = 0; i < 10; i++) users.push(person('actor', [tr(genProfile(), null)]));
     users.push(person('followed', [tr(genProfile(), 'win', true)]));
     users.push(person('followed', [tr(genProfile(), 'loss', true)]));
-    users.push(person('followed', [tr(genProfile(), 'win', true), tr(genProfile(), 'loss', true)]));
-    users.push(person('followed', [tr(genProfile(), null)]));
+    { const pr = genProfile(), a = slots.pop(), k = slots.findIndex(x => x.day === a.day), b = k >= 0 ? slots.splice(k, 1)[0] : slots.pop();   // a win and a loss on the SAME day = one "made 2 boards" card
+      users.push(person('followed', [genTrade(pr, a.day, a.sym, { outcome:'win', star:true }), genTrade(pr, b.day, b.sym, { outcome:'loss', star:true })])); }
+    { const pr = genProfile(), d = genPick(days); users.push(person('followed', [genTrade(pr, d, null, { outcome:'win' }), genTrade(pr, d, null, { outcome:'loss' })])); }   // two plain trades on one day
     const me = genProfile();
     const mine = [tr(me, 'win', true), tr(me, 'win', true), tr(me, 'loss', true), tr(me, 'loss', true), tr(me, 'win'), tr(me, 'loss')];
     return { users, mine };
@@ -7916,7 +7941,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       else p.hidden.push(x);
     } else { const j = b.dataset.act === 'up' ? i - 1 : i + 1; if(i < 0 || j < 0 || j >= ml.length) return; const ia = p.order.indexOf(x), ib = p.order.indexOf(ml[j]); p.order[ia] = ml[j]; p.order[ib] = x; }
     symSave(p); renderSymbolPrefs();
-    const nb = $('#sp-list').querySelector('[data-act="' + b.dataset.act + '"][data-s="' + x + '"]'); if(nb && !nb.disabled) nb.focus();
+    const nb = $('#sp-list').querySelector('[data-act="' + b.dataset.act + '"][data-s="' + x + '"]'); if(nb && !nb.disabled) nb.focus({ preventScroll:true });
   });
   // ---------- Settings: Time Zone + 12 / 24 hour clock ----------
   // Saved on the ACCOUNT (Backend.updatePrefs -> user metadata), so the choice follows the person to every device; the browser keeps a copy only so the first paint is right.
@@ -7986,9 +8011,9 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   const NT_PREFS = [
     { key:'likes',           label:'Likes',                       sub:'Flames and lock-ins on your trades, and likes on your profile.' },
     { key:'followers',       label:'New followers',               sub:'When someone starts following you.' },
-    { key:'followed_trades', label:'Trades by people I follow',   sub:'When a trader you follow imports a trade.' },
+    { key:'followed_trades', label:'Trades by people I follow',   sub:'When a trader you follow imports trades, whether or not they make a board. One card per trader per day (trades that made a board move into the board card).' },
     { key:'my_boards',       label:'My scoreboard places',        sub:'When one of your trades makes a Top 25 board.' },
-    { key:'followed_boards', label:'Top 3 by people I follow',    sub:'When a trader you follow finishes in the Top 3 of a board.' }
+    { key:'followed_boards', label:'Boards by people I follow',   sub:'When a trader you follow makes the Top 25 of a Winners or Losers board. One card per trader per day, named after the best finish.' }
   ];
   let NTP = { loaded:false, uid:'', prefs:{}, busy:new Set() };
   function ntPrefsDraw(){
@@ -8888,7 +8913,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     follow:{ cls:'ntk-follow', icon:NT_ICON_FOLLOW, tag:'New follower' },
     followed_trade:{ cls:'ntk-trade', icon:NT_ICON_TRADE, tag:'New trade' },
     board_place:{ cls:'ntk-place', icon:NT_ICON_TROPHY, tag:'Board place' },
-    followed_board:{ cls:'ntk-top', icon:NT_ICON_AWARD, tag:'Top 3' }
+    followed_board:{ cls:'ntk-top', icon:NT_ICON_AWARD, tag:'Board finish' }
   };
   const ntCls = (n, k) => k.cls + (n.board ? (n.board === 'worst' ? ' nb-worst' : ' nb-best') : '');   // board cards take their board's colour
   const ntTrade = n => n.symbol ? n.symbol.toUpperCase() + ' ' + (n.side === 'long' ? 'Long' : 'Short') + ' trade' : 'trade';
@@ -8901,13 +8926,16 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     return nm(a[0]) + ' and ' + rest + (rest === 1 ? ' other' : ' others');
   }
   function ntSentence(n, rich){
-    const e = rich ? esc : (x => x), who = n.kind === 'board_place' ? (rich ? '<b>You</b>' : 'You') : ntWho(n, rich), many = n.count > 1, tr = e(ntTrade(n));
+    const e = rich ? esc : (x => x), who = n.kind === 'board_place' ? (rich ? '<b>You</b>' : 'You') : ntWho(n, rich), many = n.count > 1, tr = e(ntTrade(n)), lst = n.tradeCount > 1;
+    const one = rich ? '<b>' + esc(homeName(n)) + '</b>' : homeName(n), dayTx = e(n.day ? homeLabel(n.day) : 'the day');   // followed cards name ONE trader, whatever the trade count is
     switch(n.kind){
-      case 'best_like': return who + ' gave your ' + tr + ' a flame';
-      case 'worst_like': return who + (many ? ' say' : ' says') + ' lock in on your ' + tr;
+      case 'best_like': return lst ? who + ' gave a flame to ' + n.tradeCount + ' of your trades' : who + ' gave your ' + tr + ' a flame';
+      case 'worst_like': return lst ? who + (many ? ' say' : ' says') + ' lock in on ' + n.tradeCount + ' of your trades' : who + (many ? ' say' : ' says') + ' lock in on your ' + tr;
       case 'profile_like': return who + ' liked your profile';
       case 'follow': return who + ' started following you';
-      case 'board_place': case 'followed_board': return who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + e(n.day ? homeLabel(n.day) : 'the day');
+      case 'followed_trade': return lst ? one + ' logged ' + n.tradeCount + ' trades' : who + ' logged a new ' + tr;   // sections 56 + 57: one card per trader per day
+      case 'followed_board': return lst ? one + ' made ' + n.tradeCount + ' boards for ' + dayTx : who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + dayTx;
+      case 'board_place': return who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + dayTx;
       default: return who + ' logged a new ' + tr;
     }
   }
@@ -8918,7 +8946,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   }
   const ntWhen = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en', tzOpt({ weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })); };
   function ntMeta(n){
-    if(!n.tradeId || n.points == null) return '';
+    if(!n.tradeId || n.points == null || n.tradeCount > 1) return '';   // a card about several trades shows no single trade's numbers
     return '<span class="nt-meta"><span class="im-badge ' + n.side + '">' + (n.side === 'long' ? 'Long' : 'Short') + '</span><span>' + esc(n.symbol.toUpperCase()) + '</span>' +
       '<b class="' + imCls(n.points) + '">' + homePts(n.points) + ' pts</b>' + (n.pnl == null ? '' : '<b class="' + imCls(n.pnl) + '">' + pfMoney(n.pnl, true) + '</b>') + '</span>';
   }
@@ -8952,7 +8980,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   }
   function ntCardHtml(n, i, delay){
     const k = NT_KINDS[n.kind] || NT_KINDS.follow, ago = ntAgo(n.at), grp = n.count > 1, fb = n.kind === 'follow' && !grp && n.actorId;
-    const what = n.tradeId ? (grp ? 'Open trade and see who' : 'Open trade details') : grp ? 'See everyone' : 'Open profile';
+    const what = n.tradeCount > 1 ? 'See the trades' : n.tradeId ? (grp ? 'Open trade and see who' : 'Open trade details') : grp ? 'See everyone' : 'Open profile';
     return '<div class="nt-row rise ' + ntCls(n, k) + (n.isNew ? ' new' : '') + (fb ? ' has-act' : '') + '" style="--i:' + delay + '">' +
       '<button type="button" class="nt-card" data-i="' + i + '" aria-label="' + esc(ntSentence(n, false) + ', ' + ago + (n.isNew ? ', new' : '') + '. ' + what) + '">' +
         ntAvatar(n, k) +
@@ -8963,7 +8991,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       (fb ? ntFbHtml(n.actorId, n.username, homeName(n)) : '') + '</div>';
   }
   const ntEmptyHtml = (t, m) => '<div class="empty-card"><span class="ec-ico">' + LK_SVG('<path d="M6 9a6 6 0 0 1 12 0c0 6.5 2.5 8 2.5 8h-17S6 15.5 6 9"/><path d="M10.2 20.5a2 2 0 0 0 3.6 0"/>') + '</span><b>' + esc(t) + '</b><small>' + esc(m) + '</small></div>';
-  const ntSig = () => NT.items.map(x => x.id + ':' + x.count + (x.isNew ? '1' : '0') + (ntIsF(x.actorId) ? 'f' : '')).join('|') + (NT.more ? '+' : '');
+  const ntSig = () => NT.items.map(x => x.id + ':' + x.count + '/' + x.tradeCount + (x.isNew ? '1' : '0') + (ntIsF(x.actorId) ? 'f' : '')).join('|') + (NT.more ? '+' : '');
   function ntRender(){
     const box = $('#nt-list');
     if(!NT.items.length){ const e = NT_EMPTY[NT.filter] || NT_EMPTY.all; box.innerHTML = ntEmptyHtml(e[0], e[1]); $('#nt-more').hidden = true; return; }
@@ -9044,6 +9072,27 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     }).join('');
     return '<div class="nt-ph"><b>' + esc(NT_PEOPLE_TITLE[n.kind] || 'People') + '</b><span>' + fmtCount(n.count) + '</span></div><div class="nt-plist">' + rows + '</div>';
   }
+  // The trades behind a card about several trades (SQL notification_trades): logged trades, board finishes, or my trades that got likes that day. A row opens that trade in the trade window.
+  const NT_TRADES_TITLE = { followed_trade:'Trades logged', followed_board:'Board finishes', best_like:'Flamed trades', worst_like:'Lock-in trades' };
+  function ntTradesHtml(n, trades){
+    const mine = n.kind === 'best_like' || n.kind === 'worst_like';
+    const rows = trades.map((t, i) => {
+      const isNew = !mine && i < n.newCnt, nm = (t.symbol || '').toUpperCase() + ' ' + (t.side === 'long' ? 'Long' : 'Short');
+      const pts = t.points == null ? '' : '<b class="' + imCls(t.points) + '">' + homePts(t.points) + ' pts</b>', mny = t.pnl == null ? '' : '<b class="' + imCls(t.pnl) + '">' + pfMoney(t.pnl, true) + '</b>';
+      const tail = t.place ? '#' + t.place + ' ' + esc(ntBoardName({ symbolRoot:t.symbolRoot, symbol:t.symbol, board:t.board, rankBy:t.rankBy })) : mine ? fmtCount(t.likes) + (n.kind === 'worst_like' ? (t.likes === 1 ? ' lock-in' : ' lock-ins') : (t.likes === 1 ? ' flame' : ' flames')) : esc(ntAgo(t.at));
+      return '<div class="nt-prow rise' + (isNew ? ' new' : '') + '" style="--i:' + Math.min(i, 12) + '">' +
+        '<button type="button" class="nt-pbtn" data-t="' + esc(t.id) + '" data-i="' + i + '" aria-label="' + esc('Open ' + nm + ' trade') + '">' + (mine ? '<span class="nt-ps">' + esc(t.symbolRoot || (t.symbol || '').toUpperCase()) + '</span>' : ntImg(n)) +
+          '<span class="t"><b>' + esc(nm) + '</b><small>' + pts + ' ' + mny + ' \u00B7 ' + tail + '</small></span>' + (isNew ? '<span class="nt-new">New</span>' : '') + '</button></div>';
+    }).join('');
+    return '<div class="nt-ph"><b>' + esc(NT_TRADES_TITLE[n.kind] || 'Trades') + '</b><span>' + fmtCount(trades.length) + '</span></div><div class="nt-plist">' + rows + '</div>';
+  }
+  let ntTradeRows = [];
+  async function ntLoadTrades(n, seq){
+    const box = $('#nt-people'), r = await Backend.notificationTrades({ kind:n.kind, userId:n.actorId, day:n.day }); if(seq !== NT.dseq) return;
+    if(r.error){ box.innerHTML = '<div class="ex-note">' + esc(r.error.message) + ' (If the function does not exist, run the newest supabase-setup.sql.)</div>'; return; }
+    ntTradeRows = r.trades;
+    box.innerHTML = r.trades.length ? ntTradesHtml(n, r.trades) : '<div class="ex-note">These trades are gone.</div>';
+  }
   async function ntLoadPeople(n, seq){
     const box = $('#nt-people'), r = await Backend.notificationPeople({ kind:n.kind, tradeId:n.tradeId, day:n.day }); if(seq !== NT.dseq) return;
     if(r.error){ box.innerHTML = '<div class="ex-note">' + esc(r.error.message) + ' (If the function does not exist, run the newest supabase-setup.sql.)</div>'; return; }
@@ -9056,15 +9105,15 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   //   grouped profile likes / followers -> a people list (there is no trade to show); every row opens that person's profile, followers get a Follow back button
   let ntDetailItem = null;
   async function ntShowDetail(n){
-    const seq = ++NT.dseq, k = NT_KINDS[n.kind] || NT_KINDS.follow, grp = n.count > 1, trade = !!n.tradeId; ntDetailItem = n; TD_FLAT.trade = null; formError('nt-derror', '');
+    const seq = ++NT.dseq, k = NT_KINDS[n.kind] || NT_KINDS.follow, grp = n.count > 1, dayCard = n.tradeCount > 1, likeKind = n.kind === 'best_like' || n.kind === 'worst_like', trade = !!n.tradeId && !dayCard; ntDetailItem = n; TD_FLAT.trade = null; formError('nt-derror', '');
     $('#nt-dcard').className = 'nt-dcard ' + ntCls(n, k);
     $('#nt-dhead').innerHTML = ntAvatar(n, k) + '<div class="nt-dtx"><span class="nt-line">' + ntSentence(n, true) + '</span><span class="nt-sub"><span class="nt-tag">' + k.tag + '</span><time datetime="' + esc(n.at) + '">' + esc(ntWhen(n.at)) + '</time></span></div>';
     $('#nt-dbody').hidden = !trade; $('#nt-dbody').innerHTML = trade ? '<div class="nt-skel d" aria-hidden="true"></div>' : '';
-    const pe = $('#nt-people'); pe.hidden = !grp; pe.innerHTML = grp ? '<div class="nt-skel p" aria-hidden="true"></div>' : '';
-    $('#nt-dact').hidden = grp || n.kind === 'board_place';                                        // View profile: one person only (not for a group, not for my own place)
+    const pe = $('#nt-people'); pe.hidden = !(grp || dayCard); pe.innerHTML = grp || dayCard ? '<div class="nt-skel p" aria-hidden="true"></div>' : '';
+    $('#nt-dact').hidden = n.kind === 'board_place' || (dayCard ? likeKind : grp);                                        // View profile: one person only (not for a group, not for my own place)
     $('#nt-dprofile').setAttribute('aria-label', 'View ' + homeName(n) + '\u2019s profile');
     ntSetView('detail');
-    if(grp) ntLoadPeople(n, seq);
+    if(dayCard) ntLoadTrades(n, seq); else if(grp) ntLoadPeople(n, seq);
     if(!trade) return;
     const res = await Backend.tradeDetail(n.tradeId); if(seq !== NT.dseq) return;
     if(res.error){ $('#nt-dbody').innerHTML = ''; formError('nt-derror', res.error.message + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't load this trade"); return; }
@@ -9073,7 +9122,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     $('#nt-dbody').innerHTML = tdBodyHtml(tr, ntPlace(tr, n.kind === 'board_place' || n.kind === 'followed_board' ? n.rankBy : 'points'), tr.isMe) + (grp ? '' : ntLikesHtml(tr));       // my own trade has no banner (it is me)
     if(!grp && !tr.isMe && n.actorId && n.actorId === tr.userId) $('#nt-dact').hidden = true;                  // the banner already opens that profile
   }
-  function ntOpen(n){ if(n.tradeId || n.count > 1) ntShowDetail(n); else openProfile(n.username); }
+  function ntOpen(n){ if(n.tradeId || n.count > 1 || n.tradeCount > 1) ntShowDetail(n); else openProfile(n.username); }
   $('#nt-list').addEventListener('click', e => {
     const fb = e.target.closest('.nt-fb'); if(fb){ ntToggleFollow(fb); return; }
     const c = e.target.closest('.nt-card'), n = c && NT.items[+c.dataset.i]; if(n){ NT.opener = +c.dataset.i; ntOpen(n); }
@@ -9086,7 +9135,9 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   $('#nt-dbody').addEventListener('keydown', ttUserKey);
   $('#nt-people').addEventListener('click', e => {
     const fb = e.target.closest('.nt-fb'); if(fb){ ntToggleFollow(fb); return; }
-    const b = e.target.closest('.nt-pbtn'); if(b && b.dataset.u) openProfile(b.dataset.u);
+    const b = e.target.closest('.nt-pbtn'); if(!b) return;
+    if(b.dataset.t){ const t = ntTradeRows[+b.dataset.i] || {}; ttOpenTrade(Object.assign({ id:b.dataset.t, hint:{ symbol:t.symbol, side:t.side, pnl:t.pnl }, opener:b }, t.place ? { board:t.board, place:t.place, by:t.rankBy, day:ntDetailItem && ntDetailItem.day, root:t.symbolRoot || t.symbol } : {})); return; }
+    if(b.dataset.u) openProfile(b.dataset.u);
   });
   $('#page-notifications').addEventListener('animationend', e => { if(e.animationName === 'ntRise' && e.target.classList) e.target.classList.remove('rise'); });   // played once; showing the page again must not replay it
   $('#nt-more').addEventListener('click', ntMore);
@@ -9285,6 +9336,93 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   } else { openGate(); offline(); }
 })();
 
+</script>
+<script>
+/* SCROLL KEEPER (every page). A button, switch, chip or dropdown inside a page must never move the page under the finger.
+   WHY IT WAS NEEDED: many cards are rebuilt after a tap (a filter swaps its card, Home shows skeleton cards and then the board, the Trophy case opens its picker,
+   Settings redraws a card). While a card is empty the page gets SHORTER, the browser clamps the scroll spot (often to the top), and when the content comes back the
+   control the person just pressed is somewhere else on the screen = "the page scrolls all over the place".
+   WHAT IT DOES: when a control inside a .page is pressed (click, or change of a dropdown / date), it remembers where that control sits on the screen and holds the page's
+   height (min-height) while the redraw happens. After every change to that page it scrolls by exactly the difference, so the pressed control stays where it was.
+   It finds the control again by its id or its first data-* attribute when the redraw replaced it. It lets go after 1.2 s without changes (8 s at most), the moment the person
+   scrolls (wheel / touch move / keys), or when the control is no longer on screen (another page or a detail view opened: those set their own scroll spot).
+   NO per-page code is needed: a new card or filter is covered automatically. Do not call scrollTo / scrollIntoView / focus() without { preventScroll:true } inside a page redraw. */
+(function(){
+  'use strict';
+  var QUIET_MS = 1200, MAX_MS = 8000, st = null, mo = null, raf = 0, quiet = 0, maxT = 0;
+  var SKIP = '.sb-nav, .sb-add, #mtop, .modal-overlay, [role="dialog"]';
+  var esc = function(v){ return window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/[^\w-]/g, '\\$&'); };
+
+  function keyOf(base){
+    if(base.id) return '#' + esc(base.id);
+    var names = base.getAttributeNames ? base.getAttributeNames() : [], i, v;
+    for(i = 0; i < names.length; i++){
+      if(names[i].indexOf('data-') === 0){ v = base.getAttribute(names[i]); return base.tagName.toLowerCase() + '[' + names[i] + '="' + String(v).replace(/(["\\])/g, '\\$1') + '"]'; }
+    }
+    return '';
+  }
+  function resolve(){
+    var el = st.el;
+    if(el && el.isConnected && st.page.contains(el)) return el;
+    if(!st.key) return null;
+    var n = null; try{ n = st.page.querySelector(st.key); }catch(e){}
+    if(n) st.el = n._btn || n;               // a dropdown / date box is shown by its own button (UI kit), the real control is hidden
+    return n ? st.el : null;
+  }
+  function settle(){
+    raf = 0; if(!st) return;
+    var el = resolve();
+    if(st.page.hidden){ stop(); return; }
+    if(!el) return;                             // replaced and not found yet: keep waiting (the height is held)
+    if(!el.getClientRects().length){ stop(); return; }   // not on screen any more (a detail view / another page took over): hands off
+    var d = el.getBoundingClientRect().top - st.top;
+    if(d > 0.5 || d < -0.5) window.scrollBy(0, d);
+  }
+  function schedule(){ if(!raf) raf = requestAnimationFrame(settle); }
+  function arm(){ clearTimeout(quiet); quiet = setTimeout(release, QUIET_MS); }
+  function stop(){   // drop everything at once, without moving the page (a person scrolling, another page opening)
+    if(!st) return;
+    clearTimeout(quiet); clearTimeout(maxT); if(raf){ cancelAnimationFrame(raf); raf = 0; }
+    if(mo){ mo.disconnect(); mo = null; }
+    var page = st.page, had = st.hadLock; st = null;
+    if(had) page.style.minHeight = '';
+  }
+  function release(){   // quiet again: let the height go, then put the control back once more (the page may have to shrink)
+    if(!st) return;
+    clearTimeout(quiet); clearTimeout(maxT);
+    if(mo){ mo.disconnect(); mo = null; }
+    if(st.hadLock) st.page.style.minHeight = '';
+    var s = st; settle(); if(st === s) st = null;
+  }
+  function begin(raw){
+    var base = raw._for || raw, page = base.closest ? base.closest('.page') : null;
+    if(!page || page.hidden || base.closest(SKIP)) return;
+    var el = base._btn || raw;                  // the box the person actually sees
+    if(!el.getClientRects || !el.getClientRects().length) return;
+    var top = el.getBoundingClientRect().top;
+    if(st && st.page === page){ st.el = el; st.key = keyOf(base); st.top = top; }
+    else{
+      stop();
+      var lock = !page.style.minHeight;
+      if(lock) page.style.minHeight = page.offsetHeight + 'px';
+      st = { el:el, key:keyOf(base), page:page, top:top, hadLock:lock };
+      mo = new MutationObserver(function(){ schedule(); arm(); });
+      mo.observe(page, { childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:['hidden', 'class', 'style'] });
+    }
+    clearTimeout(maxT); maxT = setTimeout(release, MAX_MS); arm();
+  }
+  function onPress(e){
+    var t = e.target; if(!t || !t.closest) return;
+    var c = t.closest('button, select, input, summary, a, [role="button"], [role="switch"], [role="tab"], .ui-pick');
+    if(c) begin(c);
+  }
+  document.addEventListener('click', onPress, true);
+  document.addEventListener('change', onPress, true);
+  // the person scrolls by themselves: stop right away, never fight a finger or a wheel
+  ['wheel', 'touchmove'].forEach(function(n){ window.addEventListener(n, stop, { passive:true, capture:true }); });
+  window.addEventListener('keydown', function(e){ if(/^(PageUp|PageDown|Home|End|ArrowUp|ArrowDown| )$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) stop(); }, true);
+  window.addEventListener('pagehide', stop);
+})();
 </script>
 </body>
 </html>
