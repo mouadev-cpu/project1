@@ -88,7 +88,7 @@ Every change must keep that move cheap:
    Trading day = Sunday 6 PM to Friday 5 PM Eastern, named after the day it ends (early-close days end sooner and shift the 5:55 / 6:00 PM times, see note 36); traders have until 5:55 PM ET to log a day's trades and Home switches to that day's board at 6:00 PM ET (Friday's day stays
    until Monday 6:00 PM ET). That rule exists once, in SQL (trading_day_of, home_latest_day). Point values live in the futures_contracts table and must
    match SYM_CAT in this file (point value and default risk). A symbol missing from that table is not ranked. Best = winners by biggest positive points, Worst = losers by biggest negative
-   points. TIES SHARE A PLACE (SQL section 50, rank() on points alone: 40 40 25 25 10 -> places 1 1 3 3 5; R:R / $ P&L only set the order the cards are drawn in), so a board can show a few more than 25 cards when a tie sits on place 25, and home_board returns tied = how many trades share the card's place (the card shows a small T mark). RANK BY NET P&L (SQL section 51): Home has a second switch next to Winners / Losers, "Rank by: Points | Net P&L" (HOME.by, memory only, every visit starts on Points). Points is the OFFICIAL scoreboard: the Your Trading Day tiles, medals, profile Winners / Losers cards, Top 3 notifications and the delete lock only ever read the points places. P&L is a second stored view of the same trades (trades.best_place_pnl / worst_place_pnl, net P&L = pnl - fees, same freeze rules, deleted_ranked_trades.net_pnl keeps gaps), asked through home_board(p_by => 'pnl'). In P&L mode the card's big number is the net P&L and the small line shows points. The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Market holidays: see note 35.
+   points. TIES SHARE A PLACE (SQL section 50, rank() on points alone: 40 40 25 25 10 -> places 1 1 3 3 5; R:R / $ P&L only set the order the cards are drawn in), so a board can show a few more than 25 cards when a tie sits on place 25, and home_board returns tied = how many trades share the card's place (the card shows a small T mark). RANK BY (SQL sections 51 + 52, SUPERSEDES the "points only" sentences that follow in this note): Home has a switch next to Winners / Losers, "Rank by: Points | P&L | R:R" (HOME.by, remembered for the visit in sessionStorage, see note 38). Points is still the default board. The next sentences were written before section 52: medals, profile cards, notifications, the Your Trading Day tiles and the delete lock now read ALL THREE rankings (note 38). Old text: the Your Trading Day tiles, medals, profile Winners / Losers cards, Top 3 notifications and the delete lock only ever read the points places. P&L is a second stored view of the same trades (trades.best_place_pnl / worst_place_pnl, net P&L = pnl - fees, same freeze rules, deleted_ranked_trades.net_pnl keeps gaps), asked through home_board(p_by => 'pnl'). In P&L mode the card's big number is the net P&L and the small line shows points. The signed-in user's own card is highlighted (class .mine, with a pop when it scrolls into view). The browser reads boards only through Backend.homeBoard / homeSymbols / myDaySummary / latestTradingDay. Market holidays: see note 35.
 16. LIKES (SQL section 23): Home cards show a FLAME (Best) or crosshair "lock in" (Worst) chip with a count, double tap likes (the words in the UI are "Flame" and "Lock in"; the SQL names stay thumbs up / lock-in); profiles show flame / lock-in / profile-like totals, each icon in a tinted ring. Colors = --lk-up (cool red, was orange until 2026-10-30) / --lk-lock (cyan) / --lk-heart (pink), set per theme, never green; the flame red is cooler than --loss (warm coral) on purpose, keep them apart. A heart likes a profile. Own trades and profiles cannot be liked.
 17. NOTIFICATIONS PAGE (SQL section 25): cards for Best likes (thumbs up on my winning trades), Worst likes (lock-ins / step-it-up on my losing trades), profile likes, new followers,
    trades logged by people I follow (only trades logged after I followed), my own board places (#1 to #25 on a symbol's Best / Worst board, from the moment the board is shown) and top 3
@@ -196,7 +196,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user applies SQL with the Supabase CLI. In a folder on their (cheap, Windows) laptop they keep supabase/migrations/*.sql, and one command, `npx supabase db push`, runs only the migration files the project has not seen yet.
    Their project ref is ckbvxdygagrckbdvemzv. EVERY time you change the database: (1) append the new numbered section to supabase-setup.sql (that file stays the full, current copy; read it before editing any existing function),
    AND (2) write that same section as a NEW migration file named <14 digit timestamp, later than the last one>_<short_name>.sql, e.g. 20261105120000_profile_privacy.sql, and hand both files back.
-   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51).
+   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
 35. MARKET HOLIDAYS (SQL sections 45 + 46, migrations 20261029210000_market_holidays.sql and 20261029230000_holiday_rules.sql): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends
@@ -223,6 +223,22 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    NOT DONE ON PURPOSE: the Stats bar chart still spans the full 23 hours (bars after an early close are simply empty); no heads-up line and no Holiday card for an early close (the holiday short sessions of section 49 have neither: they are trading days, only New Year's, Good Friday and Christmas show the Holiday card).
 37. HOLIDAYS ARE HOME-ONLY: the Holiday card and the heads-up line (#hm-hol, holRender) are drawn on Home and nowhere else; Stats has no holiday card, no heads-up line, no half-day wording and no greeting banner. (The greeting banners were removed on purpose.)
    The Home card / line keeps equal 14px space above and below it (CSS: #hm-hol .hol-card, #hm-hol .hol-note). ADMIN: Settings -> Admin tools -> Holiday Card Preview shows the card or the heads-up line on Home only (HOL.preview).
+
+38. P&L + R:R BOARDS EVERYWHERE, LOGIN RESTORE, VIEW MEMORY (SQL section 52, migration 20261031010000_pnl_rr_everywhere.sql). THREE RANKINGS: 'points' (default), 'pnl' (net P&L = pnl - fees; the UI just says P&L, never write "after fees"),
+   'rr' (R:R). Stored places per trade: best/worst_place_symbol (points), best/worst_place_pnl, best/worst_place_rr, ranked by refresh_rankings() in one pass; SQL trade_place(t, by, board) is the one reader. EVERYTHING reads all three:
+   delete lock (trade_lock_until), notifications (notification_feed has rank_by; board_place / followed_board give one card per board a trade placed on; card text "placed #3 on the NQ Best P&L board"), the Your Trading Day place tiles
+   (my_day_summary().boards, so the switch needs no call), profile Scoreboard cards + Medals + Last 5 finishes (profile chips Points | P&L | R:R, pfBy; SQL profile_board_summary / profile_by_all inside get_profile), trade window titles ("#1 Best trade by P&L").
+   R:R IS SELF-REPORTED: risk (margin_risk) is typed by the trader because no CSV / screenshot holds the stop, so the R:R board shows the note "R:R is self-reported: it uses the risk each trader entered." (a .hm-note, visible on phones).
+   CONTRACTS / SIZE ARE READ-ONLY in the import form (imRoHtml): they come from the file or screenshot, so P&L cannot be inflated by editing. Only risk, strategy and the reasons are typed. Do not claim otherwise.
+   PROFILE CARDS (SQL section 53 adds rr + net to pf_trade_json): Scoreboard, Medals and Last 5 finishes each have their OWN Points | P&L | R:R chips (pfBy / pfMedBy / pfRecBy, all default Points, remembered per visit).
+   Scoreboard + Last 5 show ONLY the chosen number (pts, or P&L, or R:R); Biggest moments show all three, one per line. Losers are red in every theme. ALL profile trade-card layout lives in ONE block at the END of the stylesheet
+   ("PROFILE TRADE CARDS"): add to that block, do not stack new per-size rules above it. LAYOUT CHECK: before handing over UI work, render the pages with a stubbed supabase client in headless Chromium at 360 / 390 / 768 / 1280 px and
+   look for overlapping or clipped text (that is how the profile / notification / Home-tile overlaps of section 53 were found). Stats and the import dialog were not covered by that check.
+   Not done on purpose: Stats Top 3 slides and the trophy picker still use points places; Stats keeps no view memory.
+   CALLS: Home first load = latest day + symbols + board + my summary; switching Winners / Losers, Rank by or the symbol = ONE call (loadHomeBoard; the banner is redrawn from HOME.sum). Profile = one call.
+   VIEW MEMORY: viewMem (sessionStorage, this visit only, like pageMem) keeps Home's Rank by / Winners-Losers / symbol / pinned day and the profile's Rank by, so a background app reopened by the phone comes back where it was; a fresh open starts clean. No trade data.
+   LOGIN RESTORE: Supabase saves the login (persistSession). Startup uses Backend.restoreUser(): no saved login -> login form; saved login but the server unreachable -> "Signing you in..." screen that retries (timer, online, tab shown) and never shows the form;
+   only a server rejection (signed_out) or no saved login opens the login gate. If people still see the form every time, check the Supabase dashboard (Auth > Sessions: time-box / inactivity timeout, JWT expiry) and that the app is always opened at the same address.
 -->
 <html lang="en">
 <head>
@@ -1901,7 +1917,7 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .hm-seg button{ min-height:44px; min-width:92px; padding:0 20px; border:0; border-radius:12px; background:transparent; color:var(--text-muted); font:700 14px var(--font-sans); cursor:pointer; }
   .hm-seg button[aria-pressed="true"].best{ background:var(--gain-dim); color:var(--gain); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--gain) 45%, transparent); }
   .hm-seg button[aria-pressed="true"].worst{ background:var(--loss-dim); color:var(--loss); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--loss) 45%, transparent); }
-  .hm-seg button.rk[aria-pressed="true"]{ background:color-mix(in srgb, var(--pc) 18%, transparent); color:var(--text); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--pc) 55%, transparent); }   /* Rank by: Points | Net P&L */
+  .hm-seg button.rk[aria-pressed="true"]{ background:color-mix(in srgb, var(--pc) 18%, transparent); color:var(--text); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--pc) 55%, transparent); }   /* Rank by: Points | P&L | R:R */
   .hm-seg button:focus-visible{ outline:2px solid var(--pc); outline-offset:2px; }
   .hm-sym{ flex:1 1 170px; max-width:260px; display:block; }
   /* Worst board: red cards */
@@ -2753,7 +2769,7 @@ html[data-theme="dark"] .ptr{box-shadow:none}
 /* Dark: every accent colour is near-white, so the white icon inside a Notifications badge vanished. Black icon on the light badge, slightly bolder. */
 html[data-theme="dark"] .nt-row .nt-av .nt-ic{ color:#000; }
 html[data-theme="dark"] .nt-row .nt-av .nt-ic svg{ width:13px; height:13px; stroke-width:2.6; }
-html[data-theme="dark"] .pf-bd.worst{ --bc:var(--text); }
+html[data-theme="dark"] .pf-bd.worst{ --bc:var(--loss); }   /* Losers are red in every theme, like Winners are green */
 html[data-theme="dark"] .nt-dcard{box-shadow:none}
 html[data-theme="dark"] .nt-dhead{background:none}
 html[data-theme="dark"] .ex-search input:focus{box-shadow:none}
@@ -2916,6 +2932,8 @@ html[data-theme="dark"] .tt-medal.rw, html[data-theme="dark"] .tt-rk.rw{ --m:var
   /* ---- filters: Home = 2 rows, Stats = 3 short rows, each row one line ---- */
   #page-home .hm-bar, #page-stats .hm-bar{ flex-wrap:nowrap; gap:8px; margin:0 0 8px; }
   #page-home .hm-bar + .hm-bar{ margin-top:0; }
+  #page-home #hm-board-bar{ flex-wrap:wrap; }
+  #page-home #hm-board-bar #hm-rankseg{ order:3; flex:1 1 100%; }   /* Points | P&L | R:R on its own row */
   .hm-bar .hm-date{ flex:1 1 0; min-width:0; max-width:none; }
   .hm-bar .hm-step{ flex:none; width:38px; }
   .hm-bar .hm-latest{ flex:none; padding:0 11px; font-size:13.5px; }
@@ -3136,6 +3154,33 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   .sf-reason[aria-checked="true"], .sf-reason[aria-checked="true"]:hover, .sf-reason[aria-checked="true"]:active, .sf-reason[aria-checked="true"]:focus{ border-color:var(--indigo); background:color-mix(in srgb, var(--indigo) 12%, transparent); }
   .sf-row:hover, .sf-row:active{ background:none; }
 }
+
+/* =====================================================================
+   PROFILE TRADE CARDS: ONE layout, last in the file so it wins over the older per-size rules above.
+   Symbol row = [badge] [SYMBOL] ............ [date]  (never wraps, the date shrinks with an ellipsis instead)
+   Numbers row = each number is one unbreakable item; items wrap as whole items, never inside a number, never stacked in a column.
+   ===================================================================== */
+.pf-bd, .pf-bd-top, .pf-bd-info, .pf-rec-info, .pf-rec-main{ min-width:0; }
+.pf-bd-top .pf-bd-info{ flex:1 1 0; display:flex; flex-direction:column; align-items:stretch; gap:6px; }
+.pf-bd-top .pf-bd-sym{ display:flex; flex-wrap:nowrap; align-items:center; gap:8px; min-width:0; }
+.pf-bd-top .pf-bd-sym .im-badge, .pf-bd-top .pf-bd-sym .im-sym{ flex:none; }
+.pf-bd-top .pf-bd-sym small{ flex:0 1 auto; min-width:0; margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+.pf-bd .pf-bd-nums, .pf-recrow .pf-bd-nums{ display:flex; flex-direction:row; flex-wrap:wrap; align-items:baseline; gap:2px 12px; white-space:normal; }
+.pf-bd .pf-bd-nums > span, .pf-recrow .pf-bd-nums > span{ white-space:nowrap; }
+.pf-bd-nums .gain{ color:var(--gain); } .pf-bd-nums .loss{ color:var(--loss); }
+.pf-bd.worst .pf-bd-rank, .pf-recrow.worst .pf-recplace{ color:var(--loss); }
+.pf-seg-row{ margin:-4px 0 12px; flex-wrap:wrap; }
+.pf-sec-top .pf-seg{ flex-wrap:wrap; justify-content:flex-end; }
+/* Biggest moments: three numbers, ALWAYS one per line and the date on its own line, so the three cards read the same at any width */
+.pf-moments .pf-bd-top .pf-bd-sym{ flex-wrap:wrap; row-gap:2px; }
+.pf-moments .pf-bd-top .pf-bd-sym small{ flex:1 0 100%; margin-left:0; text-align:left; overflow:visible; }
+.pf-moments .pf-bd .pf-bd-nums{ flex-direction:column; align-items:flex-start; gap:3px; }
+/* Notifications filter chips: five chips used to run off the right edge of a phone with no hint they scroll. They wrap instead. */
+@media (max-width:640px){ .nt-bar{ flex-wrap:wrap; overflow:visible; } .nt-fbtn{ flex:1 1 auto; padding:0 14px; } }
+/* Top-3 Home cards sit on gold / silver / bronze: the Long / Short badge gets a solid light chip so it stays readable on every medal colour */
+.hm-grid .hm-card.r1 .im-badge, .hm-grid .hm-card.r2 .im-badge, .hm-grid .hm-card.r3 .im-badge{ background:rgba(255,255,255,.72); }
+.hm-grid .hm-card.r1 .im-badge.short, .hm-grid .hm-card.r2 .im-badge.short, .hm-grid .hm-card.r3 .im-badge.short{ color:#b3261e; }
+.hm-grid .hm-card.r1 .im-badge.long, .hm-grid .hm-card.r2 .im-badge.long, .hm-grid .hm-card.r3 .im-badge.long{ color:#13703a; }
 </style>
 </head>
 <body>
@@ -3223,9 +3268,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
           <button type="button" class="best" id="hm-b-best" aria-pressed="true">Winners</button>
           <button type="button" class="worst" id="hm-b-worst" aria-pressed="false">Losers</button>
         </div>
-        <div class="hm-seg" role="group" aria-label="Rank by">
+        <div class="hm-seg" role="group" aria-label="Rank by" id="hm-rankseg">
           <button type="button" class="rk" id="hm-r-points" aria-pressed="true" title="Rank by points (price move): the default scoreboard">Points</button>
-          <button type="button" class="rk" id="hm-r-pnl" aria-pressed="false" title="Rank by net P&amp;L (after fees)">Net P&amp;L</button>
+          <button type="button" class="rk" id="hm-r-pnl" aria-pressed="false" title="Rank by P&amp;L">P&amp;L</button>
+          <button type="button" class="rk" id="hm-r-rr" aria-pressed="false" title="Rank by R:R. It uses the risk each trader entered, so it is self-reported.">R:R</button>
         </div>
         <label class="hm-sym" for="hm-sym"><select id="hm-sym" aria-label="Symbol"></select></label>
       </div>
@@ -4190,6 +4236,12 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     get(){ try{ return sessionStorage.getItem(PAGE) || 'home'; }catch(e){ return 'home'; } },
     set(k){ try{ sessionStorage.setItem(PAGE, k); }catch(e){} }
   };
+  // VIEW MEMORY (same idea as pageMem): small screen choices (Home: Rank by, Winners / Losers, symbol, pinned day; Profile: Rank by) are kept in sessionStorage for THIS visit only,
+  // so an app that was closed by the phone in the background comes back where it was, while opening it fresh starts clean. Never any trade data.
+  const viewMem = {
+    get(k){ try{ return JSON.parse(sessionStorage.getItem('nexus_v_' + k) || 'null'); }catch(e){ return null; } },
+    set(k, v){ try{ sessionStorage.setItem('nexus_v_' + k, JSON.stringify(v)); }catch(e){} }
+  };
   try{ localStorage.removeItem('nexus_page'); }catch(e){}   // the old long-lived copy is no longer used
   const SUPABASE_URL = 'https://ckbvxdygagrckbdvemzv.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_BccnjBMKuF6cj1uh93S4AQ_tJJ3kF47';   // publishable key: safe in the browser. NEVER put a service_role key here.
@@ -4247,11 +4299,20 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       theme:(m.theme === 'blue' || m.theme === 'light' || m.theme === 'dark') ? m.theme : '', howtoPending:m.howto_pending === true }; };   // theme '' = never saved on the account   // timeZone / hourFormat '' = never saved: the app default (Eastern, 12 hour) applies
     // get_profile().board_summary (SQL section 32) -> { best:{ top25, high }, worst:{ top25, high } }; high = the trade with the person's best place on that board, or null
     const toBoard = x => { x = x || {}; const h = x.high, num = v => v == null ? null : Number(v);
-      return { top25:Number(x.top25) || 0, high:h ? { id:h.id, place:Number(h.place) || 0, symbol:h.symbol || '', root:h.root || '', side:h.side || '', points:num(h.points), pnl:num(h.pnl), closed:h.closed || null, day:h.day ? String(h.day).slice(0, 10) : '' } : null }; };
+      return { top25:Number(x.top25) || 0, high:h ? { id:h.id, place:Number(h.place) || 0, symbol:h.symbol || '', root:h.root || '', side:h.side || '', points:num(h.points), pnl:num(h.pnl), rr:num(h.rr), closed:h.closed || null, day:h.day ? String(h.day).slice(0, 10) : '' } : null }; };
     const err = e => e ? { message:e.message || 'Something went wrong. Please try again.' } : null;
     return {
       ready: !!sb,
       async getUser(){ const { data } = await sb.auth.getSession(); return toUser(data.session && data.session.user); },
+      // Is a saved login still in this browser? (Supabase keeps it under sb-<project>-auth-token and deletes it itself when the server REJECTS it.)
+      hasStoredSession(){ try{ return !!localStorage.getItem('sb-' + SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0] + '-auth-token'); }catch(e){ return false; } },
+      // Startup: { state:'ok', user } | { state:'none' } (really signed out) | { state:'retry' } (a login is saved but the server could not be reached to renew it: offline, phone just woke up, project waking).
+      // 'retry' must NEVER show the login form, the person is still signed in.
+      async restoreUser(){
+        let r; try{ r = await sb.auth.getSession(); }catch(e){ r = { data:{ session:null }, error:e }; }
+        if(r.data && r.data.session) return { state:'ok', user:toUser(r.data.session.user) };
+        return { state: r.error && this.hasStoredSession() ? 'retry' : 'none', user:null };
+      },
       onAuthChange(cb){ authCb = cb; if(pendingRecovery){ const pu = pendingRecovery; pendingRecovery = null; setTimeout(() => cb('recovery', pu), 0); } sb.auth.onAuthStateChange((evt, s) => cb(evt === 'PASSWORD_RECOVERY' ? 'recovery' : evt === 'SIGNED_IN' ? 'signed_in' : evt === 'SIGNED_OUT' ? 'signed_out' : 'other', toUser(s && s.user))); },
       async signIn(email, password){ const { error } = await sb.auth.signInWithPassword({ email, password }); return { error:err(error) }; },
       async signUp({ email, password, username, termsAccepted, birthDate }){ const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ username, howto_pending:true, terms_accepted:termsAccepted === true, birth_date:birthDate }, emailRedirectTo:redirect() } });   // terms_accepted: the DATABASE refuses the sign-up without it and stamps the time itself (SQL section 38). birth_date: the DATABASE refuses anyone under 18 and then THROWS THE DATE AWAY, only "confirmed 18+" is kept (SQL section 41)
@@ -4298,7 +4359,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       },                                         // SQL function in supabase-setup.sql
       // ----- Social: profile page, follow / unfollow, user search (SQL functions in supabase-setup.sql) -----
       async getProfile(username){ const { data, error } = await sb.rpc('get_profile', { p_username:username }); const r = Array.isArray(data) ? data[0] : null;
-        return { error:err(error), profile: r ? { id:r.id, username:r.username, nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, followers:Number(r.followers) || 0, following:Number(r.following) || 0, trades:Number(r.trades) || 0, isFollowing:!!r.is_following, isMe:!!r.is_me, isGenerated:!!r.is_generated, bio:r.bio || '', tradeUpLikes:Number(r.trade_up_likes) || 0, tradeLockins:Number(r.trade_lockins) || 0, profileLikes:Number(r.profile_likes) || 0, profileLiked:!!r.profile_liked, boards:r.board_summary ? { best:toBoard(r.board_summary.best), worst:toBoard(r.board_summary.worst) } : null, extras:r.extras || null } : null }; },
+        return { error:err(error), profile: r ? { id:r.id, username:r.username, nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, followers:Number(r.followers) || 0, following:Number(r.following) || 0, trades:Number(r.trades) || 0, isFollowing:!!r.is_following, isMe:!!r.is_me, isGenerated:!!r.is_generated, bio:r.bio || '', tradeUpLikes:Number(r.trade_up_likes) || 0, tradeLockins:Number(r.trade_lockins) || 0, profileLikes:Number(r.profile_likes) || 0, profileLiked:!!r.profile_liked, boards:r.board_summary ? { best:toBoard(r.board_summary.best), worst:toBoard(r.board_summary.worst), pnl:{ best:toBoard((r.board_summary.pnl || {}).best), worst:toBoard((r.board_summary.pnl || {}).worst) }, rr:{ best:toBoard((r.board_summary.rr || {}).best), worst:toBoard((r.board_summary.rr || {}).worst) } } : null, extras:r.extras || null } : null }; },
       // Trophy case (SQL section 34): pin / unpin one of my own trades (max 3). Returns how many trophies I have now.
       async setTrophy(tradeId, pin){ const { data, error } = await sb.rpc('set_trophy_trade', { p_trade:tradeId, p_pin:!!pin }); return { error:err(error), count:Number(data) || 0 }; },
       // The trophy picker's list: my trades, sorted / filtered in the database and read a page at a time (so 100+ trades are easy to search).
@@ -4361,7 +4422,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       async adminHolidayPreview(kind, pick, name){ const { data, error } = await sb.rpc('admin_holiday_preview', { p_kind:kind || 'card', p_pick:pick || null, p_name:name || null });
         if(error || !data) return { error:err(error) || { message:'No preview returned.' }, info:null }; return { error:null, info:holInfoFromRow(data) }; },
       async adminHolidayResetSeen(){ const { data, error } = await sb.rpc('admin_holiday_reset_seen'); return { error:err(error), removed:Number(data) || 0 }; },
-      async homeBoard(day, board, symbol, by){ const { data, error } = await sb.rpc('home_board', Object.assign({ p_day:day, p_board:board, p_symbol:symbol || '' }, by === 'pnl' ? { p_by:'pnl' } : {}));   // by = 'points' (default) | 'pnl' (SQL section 51); p_by is only sent for 'pnl', so Points still works before section 51 is installed
+      async homeBoard(day, board, symbol, by){ const { data, error } = await sb.rpc('home_board', Object.assign({ p_day:day, p_board:board, p_symbol:symbol || '' }, by === 'pnl' || by === 'rr' ? { p_by:by } : {}));   // by = 'points' (default) | 'pnl' | 'rr' (SQL sections 51 / 52); p_by is only sent for the other two, so Points still works before they are installed
         return { error:err(error), trades:(data || []).map(r => ({ place:Number(r.place), id:r.id, userId:r.user_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, symbol:r.symbol || '', side:r.side || '',
           size:Number(r.size), entry:Number(r.entry_price), exit:Number(r.exit_price), risk:r.margin_risk == null ? null : Number(r.margin_risk), opened:r.opened_at, closed:r.closed_at,
           entryReason:r.entry_reason || '', exitReason:r.exit_reason || '', points:Number(r.points), pnl:Number(r.pnl), rr:r.rr == null ? null : Number(r.rr), likes:Number(r.likes) || 0, liked:!!r.liked, tied:Math.max(1, Number(r.tied) || 1), net:r.net_pnl == null ? null : Number(r.net_pnl) })) }; },
@@ -4369,9 +4430,13 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       async setProfileLike(id, like){ const { data, error } = await sb.rpc('set_profile_like', { p_target:id, p_like:like }); const r = Array.isArray(data) ? data[0] : null; return { error:err(error), likes:r ? Number(r.likes) || 0 : 0, liked:r ? !!r.liked : like }; },
       async homeSymbols(day){ const { data, error } = await sb.rpc('home_symbols', { p_day:day }); return { error:err(error), symbols:(data || []).map(r => ({ symbol:r.symbol, trades:Number(r.trades) || 0 })) }; },
       async myDaySummary(day){ const { data, error } = await sb.rpc('my_day_summary', { p_day:day }); const r = Array.isArray(data) ? data[0] : null;
-        const side = (p, sym, pts, rr, total) => ({ place:r[p] == null ? null : Number(r[p]), symbol:r[sym] || '', points:r[pts] == null ? null : Number(r[pts]), rr:r[rr] == null ? null : Number(r[rr]), total:Number(r[total]) || 0 });
-        return { error:err(error), summary: r ? { trades:Number(r.n_trades) || 0, wins:Number(r.wins) || 0, losses:Number(r.losses) || 0, netPnl:Number(r.net_pnl) || 0,
-          best:side('best_place', 'best_symbol', 'best_points', 'best_rr', 'best_total'), worst:side('worst_place', 'worst_symbol', 'worst_points', 'worst_rr', 'worst_total') } : null }; },
+        const one = x => x ? { place:x.place == null ? null : Number(x.place), symbol:x.symbol || '', points:x.points == null ? null : Number(x.points), rr:x.rr == null ? null : Number(x.rr), total:Number(x.total) || 0 } : { place:null, symbol:'', points:null, rr:null, total:0 };
+        const two = o => ({ best:one(o && o.best), worst:one(o && o.worst) });
+        if(!r) return { error:err(error), summary:null };
+        // SQL section 52: boards = { points | pnl | rr } x { best | worst }. Before it is installed the old columns give the points board only.
+        const old = (p, sym, pts, rr, total) => ({ place:r[p] == null ? null : Number(r[p]), symbol:r[sym] || '', points:r[pts] == null ? null : Number(r[pts]), rr:r[rr] == null ? null : Number(r[rr]), total:Number(r[total]) || 0 });
+        const boards = r.boards ? { points:two(r.boards.points), pnl:two(r.boards.pnl), rr:two(r.boards.rr) } : { points:{ best:old('best_place', 'best_symbol', 'best_points', 'best_rr', 'best_total'), worst:old('worst_place', 'worst_symbol', 'worst_points', 'worst_rr', 'worst_total') }, pnl:two(null), rr:two(null) };
+        return { error:err(error), summary:{ trades:Number(r.n_trades) || 0, wins:Number(r.wins) || 0, losses:Number(r.losses) || 0, netPnl:Number(r.net_pnl) || 0, boards, best:boards.points.best, worst:boards.points.worst } }; },
       // ----- Stats page: how many trades were opened in each half hour of the trading day (SQL function stats_open_times, section 24) -----
       // ----- Stats page Top 3 window (SQL function stats_top_trades, section 27) -----
       // One call for the whole Stats page (SQL stats_page, section 28): bars + finished Summary themes, both served from a SQL cache. withThemes = false asks for the bars only.
@@ -4393,7 +4458,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
           actorId:r.actor_id, username:r.actor_username || '', nickname:r.actor_nickname || '', avatarSeed:r.actor_avatar_seed || null,
           actors:(Array.isArray(r.actors) ? r.actors : []).map(a => ({ id:a.id, username:a.username || '', nickname:a.nickname || '', avatarSeed:a.avatar_seed || null })), iFollow:!!r.i_follow,
           tradeId:r.trade_id || null, symbol:r.symbol || '', symbolRoot:r.symbol_root || '', side:r.side || '', points:r.points == null ? null : Number(r.points), pnl:r.pnl == null ? null : Number(r.pnl), rr:r.rr == null ? null : Number(r.rr),
-          place:r.place == null ? null : Number(r.place), board:r.board || '', day:r.ref_day || null })) }; },
+          place:r.place == null ? null : Number(r.place), board:r.board || '', day:r.ref_day || null, rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points' })) }; },
       // everybody inside one grouped card: kind + tradeId (trade likes) or kind + day (profile likes, follows)
       async notificationPeople({ kind, tradeId, day } = {}){ const { data, error } = await sb.rpc('notification_people', { p_kind:kind, p_trade:tradeId || null, p_day:day || null });
         return { error:err(error), people:(data || []).map(r => ({ id:r.actor_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, at:r.created_at, iFollow:!!r.i_follow })) }; },
@@ -4403,7 +4468,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
         return { error:err(error), trade: r ? { id:r.id, userId:r.user_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, followers:Number(r.followers) || 0, traderTrades:Number(r.trader_trades) || 0, isFollowing:!!r.is_following, isMe:!!r.is_me, symbol:r.symbol || '', side:r.side || '',
           size:Number(r.size), entry:Number(r.entry_price), exit:Number(r.exit_price), risk:r.margin_risk == null ? null : Number(r.margin_risk), opened:r.opened_at, closed:r.closed_at,
           entryReason:r.entry_reason || '', exitReason:r.exit_reason || '', points:Number(r.points), pnl:Number(r.pnl), rr:r.rr == null ? null : Number(r.rr), likes:Number(r.likes) || 0, liked:!!r.liked,
-          day:r.trading_day ? String(r.trading_day).slice(0, 10) : null, symbolRoot:r.symbol_root || '', bestPlace:r.best_place == null ? null : Number(r.best_place), worstPlace:r.worst_place == null ? null : Number(r.worst_place), boardOpen:!!r.board_open, strategy:r.strategy || '' } : null }; },
+          day:r.trading_day ? String(r.trading_day).slice(0, 10) : null, symbolRoot:r.symbol_root || '', bestPlace:r.best_place == null ? null : Number(r.best_place), worstPlace:r.worst_place == null ? null : Number(r.worst_place), boardOpen:!!r.board_open, strategy:r.strategy || '', bestPlacePnl:r.best_place_pnl == null ? null : Number(r.best_place_pnl), worstPlacePnl:r.worst_place_pnl == null ? null : Number(r.worst_place_pnl), bestPlaceRr:r.best_place_rr == null ? null : Number(r.best_place_rr), worstPlaceRr:r.worst_place_rr == null ? null : Number(r.worst_place_rr) } : null }; },
       // ----- Test data generator (Settings, admins only; SQL functions in supabase-setup.sql, section 14 onward) -----
       async generatorStatus(){ const { data, error } = await sb.rpc('generator_status'); const r = Array.isArray(data) ? data[0] : null;
         return { error:err(error), status: r ? { isAdmin:!!r.is_admin, users:Number(r.users) || 0, trades:Number(r.trades) || 0 } : null }; },
@@ -5182,7 +5247,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const pfMoney = (n, plus) => { const r = Math.round(Math.abs(n)); return (n < 0 && r ? '-' : plus && n > 0 && r ? '+' : '') + '$' + r.toLocaleString('en'); };   // whole dollars: nobody needs the pennies
   // Scoreboard on a profile (the old Trader Stats tiles are gone: this is a show-off app, not a journal). Everything comes from SQL (section 32, get_profile().board_summary):
   // for Winners (Best boards) and Losers (Worst boards) the highest place the person ever reached (the trade opens in the trade window) and how many times they made the Top 25.
-  function pfBoardCard(kind, b){
+  function pfBoardCard(kind, b, by){
     const win = kind === 'best', name = win ? 'Winners' : 'Losers', h = b.high;
     const ico = LK_SVG(ST_SIDES[win ? 'long' : 'short'].ico);
     let body;
@@ -5190,8 +5255,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       body = '<p class="pf-bd-none">' + (win ? 'No Winners Top 25 finish yet.' : 'No Losers Top 25 finish yet.') + '</p>';
     } else {
       const day = h.day ? homeLabel(h.day) : '', side = h.side === 'long' || h.side === 'short' ? '<span class="im-badge ' + h.side + '">' + (h.side === 'long' ? 'Long' : 'Short') + '</span>' : '';
-      const nums = (h.points == null ? '' : '<span class="' + imCls(h.points) + '">' + homePts(h.points) + ' pts</span>') + (h.pnl == null ? '' : '<span class="' + imCls(h.pnl) + '">' + pfMoney(h.pnl, true) + '</span>');
-      body = '<button type="button" class="pf-bd-top" data-pftrade="' + esc(h.id) + '" data-board="' + kind + '" aria-label="' + esc('Open the #' + h.place + ' ' + name + ' trade: ' + (h.root || h.symbol).toUpperCase() + (h.side ? ' ' + h.side : '') + (day ? ', ' + day : '')) + '">' +
+      const nums = pfNumsBy(h, by);
+      body = '<button type="button" class="pf-bd-top" data-pftrade="' + esc(h.id) + '" data-board="' + kind + '" data-by="' + by + '" aria-label="' + esc('Open the #' + h.place + ' ' + name + ' trade: ' + (h.root || h.symbol).toUpperCase() + (h.side ? ' ' + h.side : '') + (day ? ', ' + day : '')) + '">' +
         '<span class="pf-bd-rank">#' + h.place + '</span>' +
         '<span class="pf-bd-info"><span class="pf-bd-sym">' + side + '<b class="im-sym">' + esc((h.root || h.symbol).toUpperCase()) + '</b>' + (day ? '<small>' + esc(day) + '</small>' : '') + '</span><span class="pf-bd-nums">' + nums + '</span></span>' +
         '<svg class="pf-bd-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>';
@@ -5200,14 +5265,17 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       (h ? '<span class="pf-bd-lbl">Highest rank</span>' : '') + body +
       '<div class="pf-bd-count"><b>' + fmtCount(b.top25) + '</b><span>' + (b.top25 === 1 ? 'time' : 'times') + ' in the Top 25</span></div></div>';
   }
+  const pfBoardsOf = (bd, by) => !bd ? null : by === 'pnl' ? bd.pnl : by === 'rr' ? bd.rr : bd;
   function pfBoardsHtml(bd){
     if(!bd) return '<div class="pf-sec"><h4>Scoreboard</h4><p class="pf-secnote">The scoreboard needs the newest supabase-setup.sql (section 32).</p></div>';
-    return '<div class="pf-sec"><h4>Scoreboard</h4><div class="pf-bds">' + pfBoardCard('best', bd.best) + pfBoardCard('worst', bd.worst) + '</div></div>';
+    const bo = pfBoardsOf(bd, pfBy) || { best:{ top25:0, high:null }, worst:{ top25:0, high:null } };
+    return '<div class="pf-sec"><div class="pf-sec-top"><h4>Scoreboard</h4>' + pfByChips('pfby', pfBy, 'Scoreboard rank by') + '</div>' +
+      '<div class="pf-bds">' + pfBoardCard('best', bo.best, pfBy) + pfBoardCard('worst', bo.worst, pfBy) + '</div></div>';
   }
   function pfOpenBoardTrade(btn){
-    const p = profileData, kind = btn.dataset.board === 'worst' ? 'worst' : 'best', h = p && p.boards && p.boards[kind] && p.boards[kind].high;
+    const p = profileData, kind = btn.dataset.board === 'worst' ? 'worst' : 'best', by = btn.dataset.by === 'pnl' || btn.dataset.by === 'rr' ? btn.dataset.by : 'points', bo = p && pfBoardsOf(p.boards, by), h = bo && bo[kind] && bo[kind].high;
     if(!h || String(h.id) !== btn.dataset.pftrade) return;
-    ttOpenTrade({ id:h.id, opener:btn, board:kind, place:h.place, day:h.day, root:h.root || h.symbol, hint:{ symbol:h.symbol, side:h.side, pnl:h.pnl, closed:h.closed, day:h.day } });
+    ttOpenTrade({ id:h.id, opener:btn, board:kind, by, place:h.place, day:h.day, root:h.root || h.symbol, hint:{ symbol:h.symbol, side:h.side, pnl:h.pnl, closed:h.closed, day:h.day } });
   }
 
   // ---------- Profile: highlights, medals, biggest moments, trophy case, last 5 finishes (SQL section 34, get_profile().extras) ----------
@@ -5218,17 +5286,30 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 3 4H7l3-4z"/></svg>',
     go:'<svg class="pf-bd-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>'
   };
+  // Each profile card has its OWN Rank by chips (Points | P&L | R:R), all starting on Points; remembered for this visit only.
+  const pfByGet = k => { const v = viewMem.get(k); return v === 'pnl' || v === 'rr' ? v : 'points'; };
+  let pfBy = pfByGet('pfby'), pfMedBy = pfByGet('pfmedby'), pfRecBy = pfByGet('pfrecby');   // Scoreboard | Medals | Last 5 board finishes
+  const pfByChips = (attr, cur, label) => '<div class="pf-seg" role="group" aria-label="' + label + '">' + [['points', 'Points'], ['pnl', 'P&amp;L'], ['rr', 'R:R']].map(c =>
+    '<button type="button" class="pf-chipbtn' + (cur === c[0] ? ' on' : '') + '" data-' + attr + '="' + c[0] + '" aria-pressed="' + (cur === c[0]) + '">' + c[1] + '</button>').join('') + '</div>';
   let pfRec = 'all';                                              // Last 5 board finishes filter: all | best | worst
-  const pfRecList = x => pfRec === 'best' ? (x.recentBest || (x.recent || []).filter(h => h.bestPlace >= 1 && h.bestPlace <= 25)) : pfRec === 'worst' ? (x.recentWorst || (x.recent || []).filter(h => h.worstPlace >= 1 && h.worstPlace <= 25)) : (x.recent || []);
+  const pfFin = x => (x.by && x.by[pfRecBy] && x.by[pfRecBy].finishes) || x;   // the list for the chosen ranking (older SQL: points only)
+  const pfRecList = x0 => { const x = pfFin(x0); return pfRec === 'best' ? (x.recentBest || (x.recent || []).filter(h => h.bestPlace >= 1 && h.bestPlace <= 25)) : pfRec === 'worst' ? (x.recentWorst || (x.recent || []).filter(h => h.worstPlace >= 1 && h.worstPlace <= 25)) : (x.recent || []); };
   const pfPick = { open:false, rows:null, busy:false, more:false, loading:false, seq:0, sort:'best', side:'', symbol:'', top25:false };           // the trophy picker on my own profile
   const pfRoot = h => String(h.root || ttRoot(h.symbol) || h.symbol || '?').toUpperCase();
   const pfSide = h => h.side === 'long' || h.side === 'short' ? '<span class="im-badge ' + h.side + '">' + (h.side === 'long' ? 'Long' : 'Short') + '</span>' : '';
   const pfNums = h => (h.points == null ? '' : '<span class="' + imCls(h.points) + '">' + homePts(h.points) + ' pts</span>') + (h.pnl == null ? '' : '<span class="' + imCls(h.pnl) + '">' + pfMoney(h.pnl, true) + '</span>');
+  // The numbers on a profile trade card. by = 'points' | 'pnl' | 'rr' show ONLY that number; 'all' shows points, P&L and R:R (Biggest moments); no by = points + P&L (trophies, picker).
+  const pfN = {
+    pts:h => h.points == null ? '' : '<span class="' + imCls(h.points) + '">' + homePts(h.points) + ' pts</span>',
+    pnl:(h, net) => { const v = net && h.net != null ? h.net : h.pnl; return v == null ? '' : '<span class="' + imCls(v) + '">' + pfMoney(v, true) + '</span>'; },
+    rr:h => h.rr == null ? '' : '<span class="' + imCls(h.rr) + '">R:R ' + homeRR(h.rr) + '</span>'
+  };
+  const pfNumsBy = (h, by) => by === 'pnl' ? pfN.pnl(h, true) : by === 'rr' ? pfN.rr(h) : by === 'all' ? pfN.pts(h) + pfN.pnl(h) + pfN.rr(h) : pfN.pts(h);
   const pfWhen = h => h.day ? homeLabel(h.day) : (h.closed ? tdDay(h.closed) : '');
   function pfTradeBtn(key, h, lead){
     const when = pfWhen(h);
     return '<button type="button" class="pf-bd-top" data-pfx="' + esc(key) + '" aria-label="' + esc('Open the trade: ' + pfRoot(h) + (h.side ? ' ' + h.side : '') + (when ? ', ' + when : '')) + '">' + (lead || '') +
-      '<span class="pf-bd-info"><span class="pf-bd-sym">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b>' + (when ? '<small>' + esc(when) + '</small>' : '') + '</span><span class="pf-bd-nums">' + pfNums(h) + '</span></span>' + PF_ICO.go + '</button>';
+      '<span class="pf-bd-info"><span class="pf-bd-sym">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b>' + (when ? '<small>' + esc(when) + '</small>' : '') + '</span><span class="pf-bd-nums">' + pfNumsBy(h, 'all') + '</span></span>' + PF_ICO.go + '</button>';
   }
   function pfMoment(key, kind, label, ico, h, none, foot){
     return '<div class="pf-bd ' + kind + '"><div class="pf-bd-head">' + ico + '<span>' + label + '</span></div>' +
@@ -5276,8 +5357,8 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       '<div class="pf-stat"><b>' + (since && !isNaN(since) ? esc(since.toLocaleDateString('en', tzOpt({ month:'short', year:'numeric' }))) : '\u2014') + '</b><span>Member since</span></div>' +
       '<div class="pf-stat"><b>' + fmtCount(x.daysPosted) + '</b><span>Days posted</span></div>' +
       '<div class="pf-stat"><b>' + (f ? esc(String(f.root).toUpperCase()) + ' <small>\u00D7' + f.n + '</small>' : '\u2014') + '</b><span>Favorite symbol</span></div></div></div>';
-    const m = x.medals || { best:{ first:0, top3:0 }, worst:{ first:0, top3:0 } };
-    const medals = '<div class="pf-sec"><h4>Medals</h4><div class="pf-bds">' + pfMedalCard('best', m.best) + pfMedalCard('worst', m.worst) + '</div></div>';
+    const m = (x.by && x.by[pfMedBy] && x.by[pfMedBy].medals) || x.medals || { best:{ first:0, top3:0 }, worst:{ first:0, top3:0 } };
+    const medals = '<div class="pf-sec"><div class="pf-sec-top"><h4>Medals</h4>' + pfByChips('pfmedby', pfMedBy, 'Medals rank by') + '</div><div class="pf-bds">' + pfMedalCard('best', m.best) + pfMedalCard('worst', m.worst) + '</div></div>';
     const L = x.liked, likedWin = L && L.pnl != null && L.pnl > 0;
     const moments = '<div class="pf-sec"><h4>Biggest moments</h4><div class="pf-bds pf-moments">' +
       pfMoment('bigWin', 'best', 'Biggest win', LK_SVG(ST_SIDES.long.ico), x.bigWin, 'No winning trade yet.') +
@@ -5285,10 +5366,10 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       pfMoment('liked', likedWin ? 'best' : 'worst', 'Most liked trade', likedWin ? LK_UP : LK_STEP, L, 'No likes on a trade yet.',
         L ? '<div class="pf-bd-count"><b>' + fmtCount(L.likes) + '</b><span>' + (likedWin ? (L.likes === 1 ? 'Flame' : 'Flames') : (L.likes === 1 ? 'Lock-in' : 'Lock-ins')) + '</span></div>' : '') + '</div></div>';
     const rec = pfRecList(x), seg = (k, l) => '<button type="button" class="pf-chipbtn' + (pfRec === k ? ' on' : '') + '" data-pfrec="' + k + '" aria-pressed="' + (pfRec === k) + '">' + l + '</button>';
-    const recent = '<div class="pf-sec"><div class="pf-sec-top"><h4>Last 5 board finishes</h4><div class="pf-seg" role="group" aria-label="Filter finishes">' + seg('all', 'All') + seg('best', 'Winners') + seg('worst', 'Losers') + '</div></div>' + (rec.length ? '<div class="pf-rec">' + rec.map((h, i) => {
+    const recent = '<div class="pf-sec"><div class="pf-sec-top"><h4>Last 5 board finishes</h4>' + pfByChips('pfrecby', pfRecBy, 'Finishes rank by') + '</div><div class="pf-seg pf-seg-row" role="group" aria-label="Filter finishes">' + seg('all', 'All') + seg('best', 'Winners') + seg('worst', 'Losers') + '</div>' + (rec.length ? '<div class="pf-rec">' + rec.map((h, i) => {
       const win = h.bestPlace >= 1 && h.bestPlace <= 25, place = win ? h.bestPlace : h.worstPlace;
       return '<button type="button" class="pf-recrow ' + (win ? 'best' : 'worst') + '" data-pfx="recent:' + i + '"><span class="pf-recplace">#' + place + '</span>' +
-        '<span class="pf-rec-info"><span class="pf-rec-main">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b><span class="pf-bd-nums">' + pfNums(h) + '</span></span><small class="pf-rec-meta">' + esc((win ? 'Winners' : 'Losers') + ' \u00B7 ' + pfWhen(h)) + '</small></span>' + PF_ICO.go + '</button>'; }).join('') + '</div>'
+        '<span class="pf-rec-info"><span class="pf-rec-main">' + pfSide(h) + '<b class="im-sym">' + esc(pfRoot(h)) + '</b><span class="pf-bd-nums">' + pfNumsBy(h, pfRecBy) + '</span></span><small class="pf-rec-meta">' + esc((win ? 'Winners' : 'Losers') + ' \u00B7 ' + pfWhen(h)) + '</small></span>' + PF_ICO.go + '</button>'; }).join('') + '</div>'
       : '<p class="pf-bd-none">' + (pfRec === 'best' ? 'No Winners Top 25 finish yet.' : pfRec === 'worst' ? 'No Losers Top 25 finish yet.' : 'No Top 25 finishes yet.') + '</p>') + '</div>';
     return glance + '@@BOARDS@@' + medals + moments + pfTrophyHtml(p, x) + recent;
   }
@@ -5300,7 +5381,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function pfOpenExtra(btn){
     const key = btn.dataset.pfx, h = pfExtraTrade(key); if(!h) return;
     const o = { id:h.id, opener:btn, hint:{ symbol:h.symbol, side:h.side, pnl:h.pnl, closed:h.closed, day:h.day }, root:pfRoot(h) };
-    if(key.indexOf('recent') === 0){ const win = h.bestPlace >= 1 && h.bestPlace <= 25; Object.assign(o, { board:win ? 'best' : 'worst', place:win ? h.bestPlace : h.worstPlace, day:h.day }); }
+    if(key.indexOf('recent') === 0){ const win = h.bestPlace >= 1 && h.bestPlace <= 25; Object.assign(o, { board:win ? 'best' : 'worst', by:pfRecBy, place:win ? h.bestPlace : h.worstPlace, day:h.day }); }
     ttOpenTrade(o);
   }
   async function pfLoadPick(append){
@@ -5528,6 +5609,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     else if(e.target.closest('[data-pfx]')) pfOpenExtra(e.target.closest('[data-pfx]'));
     else if(e.target.closest('[data-trophy-edit]')) pfToggleTrophyPanel();
     else if(e.target.closest('[data-pftrophy]')) pfToggleTrophy(e.target.closest('[data-pftrophy]'));
+    else if(e.target.closest('[data-pfby]')){ pfBy = e.target.closest('[data-pfby]').dataset.pfby; viewMem.set('pfby', pfBy); renderProfile(); }
+    else if(e.target.closest('[data-pfmedby]')){ pfMedBy = e.target.closest('[data-pfmedby]').dataset.pfmedby; viewMem.set('pfmedby', pfMedBy); renderProfile(); }
+    else if(e.target.closest('[data-pfrecby]')){ pfRecBy = e.target.closest('[data-pfrecby]').dataset.pfrecby; viewMem.set('pfrecby', pfRecBy); renderProfile(); }
     else if(e.target.closest('[data-pfrec]')){ pfRec = e.target.closest('[data-pfrec]').dataset.pfrec; renderProfile(); }
     else if(e.target.closest('[data-pkf-top]')){ pfPick.top25 = !pfPick.top25; pfLoadPick(false); }
     else if(e.target.closest('[data-pk-more]')){ if(!pfPick.loading) pfLoadPick(true); }
@@ -7687,7 +7771,13 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   function homeRecentDays(n, latest){ const out = []; let k = latest; for(let i = 0; i < n; i++){ out.push(k); k = dkPrevTrading(k); } return out; }   // used by the test-data generator
   const homeLabel = (k, long) => dkParse(k).toLocaleDateString('en', long ? { weekday:'long', month:'long', day:'numeric', year:'numeric', timeZone:'UTC' } : { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
 
-  const HOME = { day:null, latest:null, auto:true, board:'best', by:'points', symbol:'', seq:0, rows:[], note:'', loaded:false, stale:true, ver:0 };   // loaded/stale/ver: Home is only fetched again when its data changed or on pull-to-refresh
+  const HOME = { day:null, latest:null, auto:true, board:'best', by:'points', symbol:'', seq:0, rows:[], note:'', loaded:false, stale:true, ver:0, sum:null };   // loaded/stale/ver: Home is only fetched again when its data changed or on pull-to-refresh
+  const homeMem = { save(){ viewMem.set('home', { by:HOME.by, board:HOME.board, symbol:HOME.symbol, day:HOME.auto ? '' : HOME.day }); } };
+  { const m = viewMem.get('home') || {};   // restore: where the person left Home in this visit
+    if(m.by === 'pnl' || m.by === 'rr') HOME.by = m.by;
+    if(m.board === 'worst') HOME.board = 'worst';
+    if(typeof m.symbol === 'string' && /^[A-Za-z0-9]{0,24}$/.test(m.symbol)) HOME.symbol = m.symbol.toUpperCase();
+    if(typeof m.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.day)){ HOME.day = m.day; HOME.auto = false; } }
   const homeName = r => r.nickname || r.username || 'Trader';
   const homePts = n => imSign(n, fmtNum(Math.abs(n)));
   const homeRR = r => r == null ? '\u2014' : '1:' + (r < 0 ? '-' : '') + fmtNum(Math.abs(r));      // no plus sign when positive: green already says it
@@ -7698,22 +7788,22 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const LK_STEP = LK_SVG('<circle cx="12" cy="12" r="8"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r=".5"/>');   // crosshair = "lock in" (Worst trades)
   const LK_HEART = LK_SVG('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>');
   function homeCardHtml(r, i){
-    const nm = homeName(r), side = r.side === 'long' ? 'Long' : 'Short', best = HOME.board === 'best', me = current(), mine = !!(me && r.userId && r.userId === me.id), top = r.place >= 1 && r.place <= 3, medal = top ? (best ? ' r' : ' w') + r.place : '', byPnl = HOME.by === 'pnl';
+    const nm = homeName(r), side = r.side === 'long' ? 'Long' : 'Short', best = HOME.board === 'best', me = current(), mine = !!(me && r.userId && r.userId === me.id), top = r.place >= 1 && r.place <= 3, medal = top ? (best ? ' r' : ' w') + r.place : '', byPnl = HOME.by === 'pnl', byRr = HOME.by === 'rr';
     const crown = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>', warn = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"/><path d="m7 11 5 6 5-6"/><path d="M6 21h12"/></svg>';
     const tag = !top ? '' : '<span class="hm-tag">' + (best ? (r.place === 1 ? crown + 'Best Trade' : r.place === 2 ? '2nd Best' : '3rd Best') : warn + (r.place === 1 ? 'Biggest Loss' : r.place === 2 ? '2nd Biggest' : '3rd Biggest')) + '</span>';
     const chip = mine ? '' : '<button type="button" class="hm-like' + (r.liked ? ' on' : '') + '" aria-pressed="' + !!r.liked + '" title="' + (best ? 'Flame' : 'Lock in') + '" aria-label="' + (best ? 'Flame' : 'Lock in') + ', ' + r.likes + '">' + (best ? LK_UP : LK_STEP) + '<b>' + fmtCount(r.likes) + '</b></button>';
-    return '<div role="button" tabindex="0" class="hm-card' + medal + (mine ? ' mine' : '') + '" data-i="' + i + '" style="--i:' + i + '" aria-label="' + esc('Place ' + r.place + (r.tied > 1 ? ' (tied with ' + (r.tied - 1) + (r.tied === 2 ? ' other' : ' others') + ')' : '') + ', ' + nm + ', ' + r.symbol.toUpperCase() + ' ' + side + ', ' + (byPnl ? pfMoney(r.net == null ? r.pnl : r.net, true) + ' net P&L, ' + homePts(r.points) + ' points. ' : homePts(r.points) + ' points. ') + (mine ? '' : 'Double tap to ' + (best ? 'give a flame' : 'lock in') + '. ') + 'Open trade details') + '">' +
+    return '<div role="button" tabindex="0" class="hm-card' + medal + (mine ? ' mine' : '') + '" data-i="' + i + '" style="--i:' + i + '" aria-label="' + esc('Place ' + r.place + (r.tied > 1 ? ' (tied with ' + (r.tied - 1) + (r.tied === 2 ? ' other' : ' others') + ')' : '') + ', ' + nm + ', ' + r.symbol.toUpperCase() + ' ' + side + ', ' + (byPnl ? pfMoney(r.net == null ? r.pnl : r.net, true) + ' P&L, ' + homePts(r.points) + ' points. ' : byRr ? 'R:R ' + homeRR(r.rr) + ', ' + homePts(r.points) + ' points. ' : homePts(r.points) + ' points. ') + (mine ? '' : 'Double tap to ' + (best ? 'give a flame' : 'lock in') + '. ') + 'Open trade details') + '">' +
       tag + (mine ? '<span class="hm-you">You</span>' : '') + '<span class="hm-rank">' + r.place + (r.tied > 1 ? '<i class="hm-tie" title="Tied: ' + r.tied + ' trades share this place" aria-hidden="true">T</i>' : '') + '</span>' +
       '<span class="hm-av"><img alt="" draggable="false" src="' + otAvatarUri(r.avatarSeed || r.username || '?') + '"></span>' +
       '<span class="hm-who"><b>' + esc(nm) + '</b><span class="hm-meta"><span class="hm-ms"><span class="im-badge ' + r.side + '">' + side + '</span><span class="hm-sy">' + esc(r.symbol.toUpperCase()) + '</span></span><span class="hm-sep">\u00B7</span>' + (byPnl ? '<span class="hm-tp">Points <b class="hm-pnl ' + imCls(r.points) + '">' + homePts(r.points) + '</b></span>' : '<span class="hm-tp">Total P&amp;L <b class="hm-pnl ' + imCls(r.pnl) + '">' + pfMoney(r.pnl, true) + '</b></span>') + '</span></span>' +
-      (byPnl ? '<span class="hm-pts">' + pfMoney(r.net == null ? r.pnl : r.net, true) + '<small>net</small></span>' : '<span class="hm-pts">' + homePts(r.points) + '<small>pts</small></span>') +
-      '<span class="hm-end">' + chip + '<span class="hm-rr">R:R ' + homeRR(r.rr) + '</span></span></div>';
+      (byPnl ? '<span class="hm-pts">' + pfMoney(r.net == null ? r.pnl : r.net, true) + '<small>P&amp;L</small></span>' : byRr ? '<span class="hm-pts">' + homeRR(r.rr) + '<small>R:R</small></span>' : '<span class="hm-pts">' + homePts(r.points) + '<small>pts</small></span>') +
+      '<span class="hm-end">' + chip + '<span class="hm-rr">' + (byRr ? homePts(r.points) + ' pts' : 'R:R ' + homeRR(r.rr)) + '</span></span></div>';
   }
   function homeSyncBar(){
     const inp = $('#hm-date'); inp.max = HOME.latest || ''; inp.value = HOME.day || '';
     $('#hm-next').disabled = !HOME.day || !HOME.latest || HOME.day >= HOME.latest; $('#hm-latest').disabled = !HOME.day || HOME.day === HOME.latest;
     ['best', 'worst'].forEach(b => $('#hm-b-' + b).setAttribute('aria-pressed', String(HOME.board === b)));
-    $('#hm-r-points').setAttribute('aria-pressed', String(HOME.by !== 'pnl')); $('#hm-r-pnl').setAttribute('aria-pressed', String(HOME.by === 'pnl'));
+    ['points', 'pnl', 'rr'].forEach(k => $('#hm-r-' + k).setAttribute('aria-pressed', String(HOME.by === k)));
     $('#hm-grid').className = 'hm-grid ' + HOME.board;
     holRender();
   }
@@ -7921,7 +8011,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const best = HOME.board === 'best', sym = HOME.symbol ? HOME.symbol + ' ' : '', gap = count && span > count;
     const hh = holHours(HOME.day);
     let t = 'Trading day ' + homeLabel(HOME.day, true) + ', closed ' + hh.closes + (hh.early ? ' (early close)' : '') + '. ';
-    if(count) t += 'Showing the ' + (count === 1 ? 'only ' + sym + (best ? 'winning trade' : 'losing trade') : (count < HOME_TOP && !gap ? count : 'top ' + (gap ? span : count)) + ' ' + (best ? 'best ' : 'worst ') + sym + 'trades') + ', ranked by ' + (best ? 'biggest gain' : 'biggest loss') + ' in ' + (HOME.by === 'pnl' ? 'net P&L (after fees)' : 'points') + (gap ? ' (a deleted trade keeps its place empty)' : '') + '. ';
+    if(count) t += 'Showing the ' + (count === 1 ? 'only ' + sym + (best ? 'winning trade' : 'losing trade') : (count < HOME_TOP && !gap ? count : 'top ' + (gap ? span : count)) + ' ' + (best ? 'best ' : 'worst ') + sym + 'trades') + ', ranked by ' + (best ? 'biggest gain' : 'biggest loss') + ' in ' + (HOME.by === 'pnl' ? 'P&L' : HOME.by === 'rr' ? 'R:R' : 'points') + (gap ? ' (a deleted trade keeps its place empty)' : '') + '. ';
     if(HOME.day === HOME.latest){
       const hv = holView(), hi = hv && hv.closed ? hv : null;   // the admin's preview counts here too
       const nx = dkNextTrading(HOME.latest), nh = holHours(nx);   // the next trading day's hours (it may be an early-close day)
@@ -7929,7 +8019,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
               : nh.early ? 'The next trading day (' + homeLabel(nx) + ') is an early close (' + nh.early + '): import your trades by ' + nh.logs + '. Its board opens at ' + nh.board + '.'
               : 'Import your trades by ' + nh.logs + '. The board updates at ' + nh.board + ' each trading day.';
     }
-    $('#hm-sub').innerHTML = (HOME.note ? '<span class="hm-note">' + esc(HOME.note) + ' </span>' : '') + '<span class="hm-desc">' + esc(t) + '</span>';
+    $('#hm-sub').innerHTML = (HOME.note ? '<span class="hm-note">' + esc(HOME.note) + ' </span>' : '') + (HOME.by === 'rr' && count ? '<span class="hm-note">R:R is self-reported: it uses the risk each trader entered. </span>' : '') + '<span class="hm-desc">' + esc(t) + '</span>';
   }
   // Title of the banner's money tile follows the day being looked at: the latest trading day is "Today's", the one before "Yesterday's", then the weekday, then the date.
   function homePnlTitle(day){
@@ -7950,8 +8040,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const tile = (l, v, cls, sym) => '<div class="hm-bt ' + (cls || '') + (sym ? ' has-sym' : '') + '"><span>' + l + '</span>' + (sym ? '<i class="hm-sym">' + esc(sym) + '</i>' : '') + '<b>' + v + '</b></div>';
     const rankTile = (l, p, kind) => !p.place ? tile(l, '\u2014') :
       tile(l, '#' + p.place + '<em class="hm-of"> out of ' + p.total + '</em>', kind === 'best' && p.place <= HOME_TOP ? 'top' : '', p.symbol);   // the symbol badge says which symbol's board this place is on
+    const bd = (sum.boards && sum.boards[HOME.by]) || { best:sum.best, worst:sum.worst }, sfx = HOME.by === 'pnl' ? ' \u00B7 P&amp;L' : HOME.by === 'rr' ? ' \u00B7 R:R' : '';   // the two place tiles follow the Rank by switch
     box.innerHTML = tile(homePnlTitle(HOME.day), pfMoney(sum.netPnl, true), sum.netPnl > 0 ? 'gain' : sum.netPnl < 0 ? 'loss' : '') +
-      rankTile('Winners Board', sum.best, 'best') + rankTile('Losers Board', sum.worst, 'worst');
+      rankTile(sfx ? 'Winners' + sfx : 'Winners Board', bd.best, 'best') + rankTile(sfx ? 'Losers' + sfx : 'Losers Board', bd.worst, 'worst');   // shorter label with P&L / R:R so the symbol chip never cuts it
   }
   async function loadHome(soft){
     const seq = ++HOME.seq, ver = HOME.ver, grid = $('#hm-grid'); formError('hm-error', ''); holLoad();
@@ -7967,19 +8058,35 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       if(!vis.some(x => x.symbol === HOME.symbol)) HOME.symbol = vis.length ? vis[0].symbol : '';
       homeSymbolsUi(vis); }
     const [bd, me] = await Promise.all([HOME.symbol ? Backend.homeBoard(HOME.day, HOME.board, HOME.symbol, HOME.by) : Promise.resolve({ error:null, trades:[] }), Backend.myDaySummary(HOME.day)]); if(seq !== HOME.seq) return;
-    homeBanner(me.summary, 'ok');
-    if(bd.error){ HOME.rows = []; grid.innerHTML = ''; formError('hm-error', bd.error.message, "Can't load trades"); return; }
+    HOME.sum = me.summary; homeBanner(me.summary, 'ok');   // the summary holds my places on every ranking, so the Rank by switch needs no second call for the tiles
+    if(!homeDraw(bd)) return;
+    homeMem.save();
+    if(ver === HOME.ver){ HOME.loaded = true; HOME.stale = false; }
+  }
+  // Draws the cards (or the empty state / error) for a board answer. Returns false when the board could not be loaded.
+  function homeDraw(bd){
+    const grid = $('#hm-grid');
+    if(bd.error){ HOME.rows = []; grid.innerHTML = ''; formError('hm-error', bd.error.message, "Can't load trades"); return false; }
     HOME.rows = bd.trades; HOME.note = ''; homeSub(HOME.rows.length, HOME.rows.reduce((m, r) => Math.max(m, r.place), 0));
     const what = HOME.board === 'best' ? 'winning' : 'losing', sym = HOME.symbol ? HOME.symbol + ' ' : '';
     grid.innerHTML = HOME.rows.length ? HOME.rows.map(homeCardHtml).join('') : homeEmpty(HOME.symbol ? 'No ' + sym + what + ' trades for ' + homeLabel(HOME.day) : HOME.hiddenOnly ? 'Your symbols are hidden' : 'No ranked trades for ' + homeLabel(HOME.day), HOME.symbol || !HOME.hiddenOnly ? 'Traders import their ' + what + ' trades and they are ranked here.' : 'All symbols are hidden. Show them again with the Symbols button.');
     homeWatchMine();
-    if(ver === HOME.ver){ HOME.loaded = true; HOME.stale = false; }
+    return true;
+  }
+  // Only the board changed (Winners / Losers, Rank by, another symbol): ONE call. The day, the symbol list and my summary are already on screen.
+  // Falls back to the full load when Home was never loaded or its data is stale.
+  async function loadHomeBoard(soft){
+    if(!HOME.loaded || HOME.stale || !HOME.sum || !HOME.symbol || !HOME.day || !current() || !Backend.ready) return loadHome(!!soft);
+    const seq = ++HOME.seq; formError('hm-error', ''); homeSyncBar(); homeSub(null); homeMem.save();
+    if(!soft) $('#hm-grid').innerHTML = Array.from({ length:6 }, () => '<div class="hm-skel" aria-hidden="true"></div>').join('');
+    const bd = await Backend.homeBoard(HOME.day, HOME.board, HOME.symbol, HOME.by); if(seq !== HOME.seq) return;
+    homeBanner(HOME.sum, 'ok'); homeDraw(bd);
   }
   function homePick(k, note){
     if(!HOME.latest || !/^\d{4}-\d{2}-\d{2}$/.test(k || '')) return homeSyncBar();
     if(dkClosed(k)){ const hn = HOL.map[k]; k = dkPrevTrading(dkAdd(k, 1)); note = (hn ? 'Markets are closed for ' + hn : 'Futures are closed on weekends') + ', so this shows ' + homeLabel(k) + '.'; }
     if(k > HOME.latest){ k = HOME.latest; note = 'That trading day is not logged yet, so this shows the latest one.'; }
-    HOME.day = k; HOME.auto = k === HOME.latest; HOME.note = note || ''; loadHome();
+    HOME.day = k; HOME.auto = k === HOME.latest; HOME.note = note || ''; homeMem.save(); loadHome();
   }
   function homeEnter(){ if(HOME.loaded && !HOME.stale) return; loadHome(); }      // already on screen and nothing changed: just show it
   function refreshHomeIfVisible(){ HOME.ver++; HOME.stale = true; if(!$('#page-home').hidden) homeEnter(); }
@@ -7987,9 +8094,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   $('#hm-prev').addEventListener('click', () => { if(HOME.day) homePick(dkPrevTrading(HOME.day)); });
   $('#hm-next').addEventListener('click', () => { if(HOME.day) homePick(dkNextTrading(HOME.day)); });
   $('#hm-latest').addEventListener('click', () => { if(HOME.latest) homePick(HOME.latest); });
-  ['best', 'worst'].forEach(b => $('#hm-b-' + b).addEventListener('click', () => { if(HOME.board !== b){ HOME.board = b; loadHome(); } }));
-  ['points', 'pnl'].forEach(by => $('#hm-r-' + by).addEventListener('click', () => { if(HOME.by !== by){ HOME.by = by; loadHome(true); } }));   // Rank by: Points (default) | Net P&L; memory only, so every visit starts on Points
-  $('#hm-sym').addEventListener('change', e => { HOME.symbol = e.target.value; loadHome(); });
+  ['best', 'worst'].forEach(b => $('#hm-b-' + b).addEventListener('click', () => { if(HOME.board !== b){ HOME.board = b; loadHomeBoard(false); } }));
+  ['points', 'pnl', 'rr'].forEach(by => $('#hm-r-' + by).addEventListener('click', () => { if(HOME.by !== by){ HOME.by = by; loadHomeBoard(true); } }));   // Rank by: Points (default) | P&L | R:R; remembered for this visit (homeMem)
+  $('#hm-sym').addEventListener('change', e => { HOME.symbol = e.target.value; loadHomeBoard(false); });
   // While Home is open on the latest day, move to the new day by itself when SQL says the next board has opened (6:00 PM ET).
   setInterval(() => { if($('#page-home').hidden || !HOME.auto || !HOME.latest || !current()) return; Backend.latestTradingDay().then(r => { if(r.day && r.day !== HOME.latest) loadHome(); }); }, 60000);
 
@@ -8008,13 +8115,18 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   const ttMedal = (text, cls) => '<span class="tt-medal ' + (cls || '') + '">' + (cls === 'rw' ? TT_DOWN : TT_CROWN) + esc(text) + '</span>';
   const ttMedalCls = (win, place) => win ? (place === 1 ? '' : place === 2 ? 'r2' : place === 3 ? 'r3' : 'rn') : 'rw';   // gold / silver / bronze for the first three, red for the Worst board
   // "#2 Worst trade of Fri, Oct 23" for a trade that holds a place on its symbol's board ('' when it has none)
-  const ttPlaceOf = t => { if(!t.boardOpen || !t.day || !t.pnl) return 0; const p = t.pnl > 0 ? t.bestPlace : t.worstPlace; return p >= 1 && p <= 25 ? p : 0; };
-  const ttRankTitle = (win, p, by) => '<span class="tt-rk ' + ttMedalCls(win, p) + '">' + (win ? TT_CROWN : TT_DOWN) + '#' + p + ' ' + (win ? 'Best' : 'Worst') + ' trade' + (by === 'pnl' ? ' by P&amp;L' : '') + '</span>';
+  // The place a trade holds on one ranking ('points' | 'pnl' | 'rr'): { win, p } or null. A trade is a winner on a board when it holds a Best place there.
+  const ttPlaceInfo = (t, by) => {
+    if(!t.boardOpen || !t.day) return null;
+    const b = by === 'pnl' ? t.bestPlacePnl : by === 'rr' ? t.bestPlaceRr : t.bestPlace, w = by === 'pnl' ? t.worstPlacePnl : by === 'rr' ? t.worstPlaceRr : t.worstPlace;
+    return b >= 1 && b <= 25 ? { win:true, p:b } : w >= 1 && w <= 25 ? { win:false, p:w } : null;
+  };
+  const ttByTxt = by => by === 'pnl' ? ' by P&amp;L' : by === 'rr' ? ' by R:R' : '';
+  const ttRankTitle = (win, p, by) => '<span class="tt-rk ' + ttMedalCls(win, p) + '">' + (win ? TT_CROWN : TT_DOWN) + '#' + p + ' ' + (win ? 'Best' : 'Worst') + ' trade' + ttByTxt(by) + '</span>';
   const ttPlainTitle = pnl => pnl > 0 ? 'Winning trade' : pnl < 0 ? 'Losing trade' : 'Trade';
-  function ttPlaceMedal(t){
-    if(!t.boardOpen || !t.day || !t.pnl) return '';
-    const win = t.pnl > 0, p = win ? t.bestPlace : t.worstPlace; if(!(p >= 1 && p <= 25)) return '';
-    return ttMedal('#' + p + ' ' + (win ? 'Best' : 'Worst') + ' trade \u00B7 ' + homeLabel(t.day), ttMedalCls(win, p));
+  function ttPlaceMedal(t, by){
+    const i = ttPlaceInfo(t, by); if(!i) return '';
+    return ttMedal('#' + i.p + ' ' + (i.win ? 'Best' : 'Worst') + ' trade' + ttByTxt(by).replace('&amp;', '&') + ' \u00B7 ' + homeLabel(t.day), ttMedalCls(i.win, i.p));
   }
   // The like button sits left of Follow in the trader banner: thumbs up on a winning trade, lock in (the step) on a losing one. Icon and count only; the words live in aria-label.
   function ttLikeHtml(t){
@@ -8596,7 +8708,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     const d = res.trade;
     if(t0){ Object.assign(t0, { followers:d.followers, traderTrades:d.traderTrades, isFollowing:d.isFollowing, isMe:d.isMe, likes:d.likes, liked:d.liked }); ttPaintFollow(t0.userId); return; }
     TT.rows = [d]; TT.medals = [''];
-    { const pl = ttPlaceOf(d); $('#ttTitle').innerHTML = pl ? ttRankTitle(d.pnl > 0, pl) : ttPlainTitle(d.pnl); $('#ttSub').textContent = pl ? homeLabel(d.day) : (tdDay(d.closed) || 'Trade details'); }
+    { const pl = ttPlaceInfo(d, o.by); $('#ttTitle').innerHTML = pl ? ttRankTitle(pl.win, pl.p, o.by) : ttPlainTitle(d.pnl); $('#ttSub').textContent = pl ? homeLabel(d.day) : (tdDay(d.closed) || 'Trade details'); }
     $('#topCard').classList.toggle('short', d.pnl < 0);
     ttRender();
   }
@@ -8718,7 +8830,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   };
   const ntCls = (n, k) => k.cls + (n.board ? (n.board === 'worst' ? ' nb-worst' : ' nb-best') : '');   // board cards take their board's colour
   const ntTrade = n => n.symbol ? n.symbol.toUpperCase() + ' ' + (n.side === 'long' ? 'Long' : 'Short') + ' trade' : 'trade';
-  const ntBoardName = n => (n.symbolRoot || (n.symbol || '').toUpperCase()) + ' ' + (n.board === 'worst' ? 'Worst' : 'Best');
+  const ntBoardName = n => (n.symbolRoot || (n.symbol || '').toUpperCase()) + ' ' + (n.board === 'worst' ? 'Worst' : 'Best') + (n.rankBy === 'pnl' ? ' P&L' : n.rankBy === 'rr' ? ' R:R' : '');   // "NQ Best P&L board"
   // "Alex" / "Alex and Sam" / "Alex and 4 others": a grouped card names the newest person and counts the rest.
   function ntWho(n, rich){
     const nm = a => rich ? '<b>' + esc(homeName(a)) + '</b>' : homeName(a), a = n.actors && n.actors.length ? n.actors : [n], rest = Math.max(0, (n.count || 1) - 1);
@@ -8853,7 +8965,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     setTimeout(swap, 150);
   }
   // first row of the trade in a card: the symbol pill, then its place on the board when it has one
-  function ntPlace(t){ return '<b class="tt-sym">' + esc(t.symbolRoot || ttRoot(t.symbol)) + '</b>' + ttPlaceMedal(t); }
+  function ntPlace(t, by){ return '<b class="tt-sym">' + esc(t.symbolRoot || ttRoot(t.symbol)) + '</b>' + ttPlaceMedal(t, by); }
   function ntLikesHtml(t){
     if(!t.likes || !t.pnl) return '';
     const lose = t.pnl < 0; return '<p class="nt-likes">' + (lose ? LK_STEP : LK_UP) + fmtCount(t.likes) + (lose ? (t.likes === 1 ? ' lock-in' : ' lock-ins') : (t.likes === 1 ? ' flame' : ' flames')) + '</p>';
@@ -8896,7 +9008,7 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
     if(res.error){ $('#nt-dbody').innerHTML = ''; formError('nt-derror', res.error.message + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't load this trade"); return; }
     if(!res.trade){ $('#nt-dbody').innerHTML = ntEmptyHtml('This trade is gone', 'The trader deleted it, so there is nothing left to show.'); return; }
     const tr = res.trade; TD_FLAT.trade = tr;
-    $('#nt-dbody').innerHTML = tdBodyHtml(tr, ntPlace(tr), tr.isMe) + (grp ? '' : ntLikesHtml(tr));       // my own trade has no banner (it is me)
+    $('#nt-dbody').innerHTML = tdBodyHtml(tr, ntPlace(tr, n.kind === 'board_place' || n.kind === 'followed_board' ? n.rankBy : 'points'), tr.isMe) + (grp ? '' : ntLikesHtml(tr));       // my own trade has no banner (it is me)
     if(!grp && !tr.isMe && n.actorId && n.actorId === tr.userId) $('#nt-dact').hidden = true;                  // the banner already opens that profile
   }
   function ntOpen(n){ if(n.tradeId || n.count > 1) ntShowDetail(n); else openProfile(n.username); }
@@ -9062,6 +9174,38 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
   window.addEventListener('resize', () => { if(TOUR.active) tourPlace(performance.now(), true); });
   new MutationObserver(() => { if(TOUR.step === 'reading' && !$('#howtoOverlay').classList.contains('active')) tourFinish(); }).observe($('#howtoOverlay'), { attributes:true, attributeFilter:['class'] });
 
+  // ---------- Keep the person signed in ----------
+  // The login is saved by Supabase (persistSession). When the app opens after a while the short access token has expired and must be renewed over the network.
+  // If that call fails (no signal yet, phone waking up) the old code saw "no user" and showed the login form even though the person was still signed in.
+  // Now: no saved login -> login form; saved login but the server unreachable -> a quiet "Signing you in..." screen that retries by itself (on a timer, when the
+  // connection comes back, when the tab is shown again) and never shows the form; the server REJECTING the login (signed_out event) -> login form.
+  const RESTORE = { timer:0, tries:0, busy:false, el:null };
+  function restoreUi(failed){
+    if(!RESTORE.el){
+      const d = document.createElement('div'); d.id = 'restore-splash'; d.setAttribute('role', 'status'); d.setAttribute('aria-live', 'polite');
+      d.style.cssText = 'position:fixed;inset:0;z-index:499;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:var(--ink);color:var(--text);font:600 15px var(--font-sans)';
+      document.body.appendChild(d); RESTORE.el = d;
+    }
+    RESTORE.el.innerHTML = '<div style="font-size:17px;font-weight:700">' + (failed ? 'Can\u2019t reach the server' : 'Signing you in\u2026') + '</div>' +
+      '<div style="color:var(--text-muted);font-weight:500;max-width:320px">' + (failed ? 'You are still signed in. Check your connection; we will keep trying.' : 'Just a moment.') + '</div>' +
+      (failed ? '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button type="button" class="stamp-btn" id="restore-retry">Try again</button><button type="button" class="stamp-btn secondary" id="restore-other">Use another account</button></div>' : '');
+    const r = $('#restore-retry'); if(r) r.onclick = () => restoreSession(true);
+    const o = $('#restore-other'); if(o) o.onclick = () => { restoreStop(); openGate(); };
+  }
+  function restoreStop(){ clearTimeout(RESTORE.timer); RESTORE.timer = 0; RESTORE.tries = 0; if(RESTORE.el){ RESTORE.el.remove(); RESTORE.el = null; } }
+  async function restoreSession(manual){
+    if(RESTORE.busy) return; RESTORE.busy = true; clearTimeout(RESTORE.timer);
+    let r; try{ r = await Backend.restoreUser(); } finally { RESTORE.busy = false; }
+    if(r.state === 'ok'){
+      restoreStop(); const u = r.user; sessionUser = u; syncPrefs(u); renderUserBadge(); closeGate(); dataChanged(); if(!$('#page-settings').hidden) refreshGenerator(); setTimeout(tourStart, 500); return;
+    }
+    if(r.state === 'none'){ restoreStop(); openGate(); return; }
+    RESTORE.tries = manual ? RESTORE.tries : RESTORE.tries + 1; restoreUi(RESTORE.tries >= 3);
+    RESTORE.timer = setTimeout(() => restoreSession(), Math.min(30000, 2000 * Math.pow(2, Math.max(0, RESTORE.tries - 1))));   // 2 s, 4 s, 8 s ... at most every 30 s
+  }
+  window.addEventListener('online', () => { if(RESTORE.el) restoreSession(true); });
+  document.addEventListener('visibilitychange', () => { if(!document.hidden && RESTORE.el) restoreSession(true); });
+
   // ---------- Start ----------
   if(Backend.ready){
     Backend.onAuthChange((evt, user) => {
@@ -9069,9 +9213,9 @@ html[data-theme="dark"] .hm-grid.worst .hm-card.w1, html[data-theme="dark"] .hm-
       if(evt === 'recovery'){ closeGate(); setTimeout(() => { setRecoveryUi(true); $('#pm-new-password').value = ''; $('#pm-confirm-password').value = ''; pmMeter(); $('#passwordHeadUsername').textContent = user ? user.username : ''; $('#passwordOverlay').classList.add('active'); }, 0); return; }
       syncPrefs(user); renderUserBadge(); if(user){ if(!was || was.id !== user.id){ ntReset(); dataChanged(); } if(!$('#page-settings').hidden && !GEN.loaded) refreshGenerator(); }
       if(user){ closeGate(); setTimeout(tourStart, 500); }
-      else if(!recovering){ ntReset(); closeOverlays(); openGate(); }
+      else if(!recovering && (evt === 'signed_out' || !Backend.hasStoredSession())){ restoreStop(); ntReset(); closeOverlays(); openGate(); }   // a failed renewal while a login is saved is NOT a sign-out (see restoreSession)
     });
-    Backend.getUser().then(u => { sessionUser = u; syncPrefs(u); renderUserBadge(); if(!u) openGate(); else { dataChanged(); if(!$('#page-settings').hidden) refreshGenerator(); setTimeout(tourStart, 500); } });
+    restoreSession();
   } else { openGate(); offline(); }
 })();
 
