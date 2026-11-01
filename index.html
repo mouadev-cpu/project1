@@ -107,10 +107,14 @@ Every change must keep that move cheap:
    - best_like / worst_like: ONE card per kind per Eastern-time day (nid likes_day:<kind>:<day>); cnt = people, tcnt = trades liked that day. One trade = the old trade + people view (people filtered by the day).
    - followed_trade: ONE card per trader per trading day (cnt = tcnt = trades). Trades that already have a followed_board card are left out (once the board is shown and the trade is in the Top 25, and the Boards switch is ON).
    - followed_board: ONE card per trader per trading day (tcnt = trades that made a board; place / board / rank_by = the best finish, tie Points > P&L > R:R, helper trade_best_place()).
-   - board_place (MY trades) is still one card per ranking per trade: see the owner chat before changing it.
-   Notifications For Me (note 19): the followed traders now log two trades on the SAME day, so "logged 2 trades" / "made 2 boards" cards exist; most test trades land in a Top 25 (boards are tiny), so they show up as board cards.
-19. NOTIFICATION TEST DATA (SQL section 27, Settings -> Test Data Generator -> "Notifications For Me", admins only): one press creates 14 fake traders (10 who like / follow me, 4 I follow) and 6 trades on my own
-   account, then SQL adds the likes and follows, so every Notifications card exists once and each grouped / single window can be tried. Star trades (huge point moves, GEN_STAR) make sure the board cards appear.
+   - board_place (MY trades, SQL section 58, migration 20261101120000_own_board_cards.sql): ONE card per trade. place / board / rank_by = the best finish, bcnt = on how many of the 3 rankings it placed in the Top 25. Opening it shows "Your finishes" (ntBoardsHtml, SQL notification_boards()): Points, P&L, R:R, a place or "Outside the Top 25", above the trade.
+   NEW MARKERS ARE TIME-BASED (notification_state.seen_at vs each event's time), never by card id, so renaming / regrouping cards never re-flags old news.
+   Notifications For Me (note 19): pick a type in the dropdown to see each card on its own.
+19. NOTIFICATION TEST DATA (SQL sections 27 + 59, Settings -> Test Data Generator -> "Notifications For Me", admins only): a dropdown picks ONE notification type (or "Everything at once"), one press adds it to the signed-in admin.
+   Types: flame_one / flame_day, lock_one / lock_day, plike_one / plike_many, follow_one / follow_many, board_one / board_all, ft_one / ft_day (a trader I follow logged 1 / 2 trades), fb_one / fb_day (made 1 / 2 boards).
+   The browser builds the cast (genNotifPlan(type): 'actor' accounts like / follow me, 'followed' accounts are the ones I follow, plus a few of my own trades), SQL generate_my_notifications(users, mine, type) makes the likes and follows.
+   Star trades (huge point moves, GEN_STAR) always place on a board; FLAT trades (exit = entry, genTrade force.flat) never do, which is the only way to get a "logged a trade" card, because a trade that made a board lives in the board card (note 41).
+   Pressing a type again stacks on the same day card. Each type shows only its own card (the flame / lock-in types clear the places of my test trades, board_one trims one test trade to a single ranking).
    It is built from the same generator pieces as the rest (genTrade, generateTestData, generateMyTrades); "Remove All Generated" cleans it all up.
 20. PROFILE DETAIL VIEWS (SQL section 29): on a Profile, the Trades, Followers and Following tiles are buttons that open a detail view inside the Profile page (same two-beat switch as Notifications,
    code block "Profile: Trades / Followers / Following detail view"). Trades = a table read straight from the trades table (Backend.profileTrades); Followers / Following = people lists from the SQL
@@ -204,7 +208,7 @@ Theme: Blue is the default. Only the Blue theme gets glow effects. Light stays s
    The user applies SQL with the Supabase CLI. In a folder on their (cheap, Windows) laptop they keep supabase/migrations/*.sql, and one command, `npx supabase db push`, runs only the migration files the project has not seen yet.
    Their project ref is ckbvxdygagrckbdvemzv. EVERY time you change the database: (1) append the new numbered section to supabase-setup.sql (that file stays the full, current copy; read it before editing any existing function),
    AND (2) write that same section as a NEW migration file named <14 digit timestamp, later than the last one>_<short_name>.sql, e.g. 20261105120000_profile_privacy.sql, and hand both files back.
-   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52), 20261031120000_profile_trade_rr.sql (53), 20261031180000_profile_moments_by.sql (54), 20261031210000_follow_notifications_stats_cache.sql (55), 20261031230000_trade_day_cards_best_board.sql (56), 20261101000000_notification_cards_merge.sql (57).
+   Existing files: 20261028000000_baseline.sql (sections 1-41, marked applied with `migration repair`, never pushed), 20261028000100_notification_settings.sql (42), 20261028000200_keep_awake.sql (43), 20261028000300_keep_awake_auto_delete.sql (44), 20261029210000_market_holidays.sql (45), 20261029230000_holiday_rules.sql (46), 20261030000000_holiday_valid_until.sql (47), 20261030120000_early_closes.sql (48), 20261030180000_holiday_short_sessions.sql (49), 20261030210000_tied_places.sql (50), 20261030230000_rank_by_pnl.sql (51), 20261031010000_pnl_rr_everywhere.sql (52), 20261031120000_profile_trade_rr.sql (53), 20261031180000_profile_moments_by.sql (54), 20261031210000_follow_notifications_stats_cache.sql (55), 20261031230000_trade_day_cards_best_board.sql (56), 20261101000000_notification_cards_merge.sql (57), 20261101120000_own_board_cards.sql (58).
    Tell the user in 2 lines: drop the new file in supabase\migrations, run `npx supabase db push`, answer Y. Never edit an old migration file (the CLI will not rerun it); fix mistakes with a NEW file.
    Keep the SQL idempotent (create or replace / if not exists), as before. Do not ask the user to run Docker or `supabase start` (heavy on their laptop). Beginner steps are in supabase/SETUP-GUIDE.md.
 35. MARKET HOLIDAYS (SQL sections 45 + 46, migrations 20261029210000_market_holidays.sql and 20261029230000_holiday_rules.sql): a holiday is treated like a weekend day, and the board from before it stays up until the next trading day ends
@@ -2546,6 +2550,15 @@ html[data-theme="light"] .ph-ico{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.2
   .nt-pbtn b{ display:block; font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-pbtn small{ display:block; margin-top:2px; font:500 12.5px var(--font-mono); color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-prow .nt-fb{ margin-right:12px; }
+  .nt-fin{ margin:0 0 14px; }
+  .nt-fin .nt-ph{ margin-top:14px; }
+  .nt-pstat{ cursor:default; }
+  .nt-pbtn small.nt-fp{ color:var(--nc); font-weight:700; }   /* a board finish row: the place on its own line, never cut off */
+  .nt-pgo{ flex:none; width:18px; height:18px; display:grid; place-items:center; color:var(--text-muted); }
+  .nt-pgo svg{ width:16px; height:16px; }
+  .nt-prow.hit::before{ opacity:1; }
+  .nt-prow.hit{ background:color-mix(in srgb, var(--nc) 7%, var(--surface)); border-color:color-mix(in srgb, var(--nc) 30%, var(--line)); }
+  .nt-prow.hit .nt-ps{ background:var(--nc); color:var(--surface); }
   .nt-pbtn .nt-ps{ width:42px; height:42px; flex:none; display:grid; place-items:center; border-radius:13px; background:color-mix(in srgb, var(--nc) 14%, var(--surface-2)); color:var(--nc); font:800 12px var(--font-mono); }   /* section 57: symbol tile for my own liked trades */
   .nt-pbtn small b{ display:inline; font:inherit; font-weight:700; overflow:visible; }   /* section 56: points / P&L inside a day card's trade rows stay on one line */
   #page-notifications.in-detail > .page-head{ display:none; }
@@ -3446,8 +3459,35 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
         </div>
         <div class="gen-mine">
           <h5>Notifications For Me</h5>
-          <p class="gen-sub">Creates 14 new fake traders and gives your own account one of every Notifications card, so you can press each one and check the window it opens: flames on your winning trades and lock-ins on your losing ones (a crowd, two people and a single person), profile likes and new followers on three different days (a crowd, one person with a Follow back button, two people), new trades from 4 traders you now follow, your own #1 board places and their Top 3 finishes. Press it again to stack more cards (the list then pages with Load more). &quot;Remove All Generated&quot; clears all of it: the fake people, their likes and follows, and the trades this put on your account.</p>
-          <div class="gen-actions"><button type="button" class="stamp-btn" id="gen-nt-go">Generate Notifications</button></div>
+          <p class="gen-sub">Adds the Notification you pick to your account, with fake traders to send it. Remove All Generated clears it.</p>
+          <div class="gen-grid">
+            <div class="im-f"><label for="gen-nt-type">Notification</label><select id="gen-nt-type" class="tz-select">
+              <option value="all">Everything at once</option>
+              <optgroup label="Likes on my trades">
+                <option value="flame_one">Flame on one trade</option>
+                <option value="flame_day">Flames on several trades</option>
+                <option value="lock_one">Lock-in on one trade</option>
+                <option value="lock_day">Lock-ins on several trades</option>
+              </optgroup>
+              <optgroup label="Profile">
+                <option value="plike_one">Profile like, one person</option>
+                <option value="plike_many">Profile likes, a crowd</option>
+                <option value="follow_one">New follower, one person</option>
+                <option value="follow_many">New followers, a crowd</option>
+              </optgroup>
+              <optgroup label="My boards">
+                <option value="board_one">My trade on one board</option>
+                <option value="board_all">My trade on all three boards</option>
+              </optgroup>
+              <optgroup label="People I follow">
+                <option value="ft_one">Logged one trade</option>
+                <option value="ft_day">Logged two trades</option>
+                <option value="fb_one">Made one board</option>
+                <option value="fb_day">Made two boards</option>
+              </optgroup>
+            </select></div>
+          </div>
+          <div class="gen-actions"><button type="button" class="stamp-btn" id="gen-nt-go">Generate Notification</button></div>
         </div>
       </div>
       <div class="gen-card" id="ka-card">
@@ -4499,7 +4539,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
           actorId:r.actor_id, username:r.actor_username || '', nickname:r.actor_nickname || '', avatarSeed:r.actor_avatar_seed || null,
           actors:(Array.isArray(r.actors) ? r.actors : []).map(a => ({ id:a.id, username:a.username || '', nickname:a.nickname || '', avatarSeed:a.avatar_seed || null })), iFollow:!!r.i_follow,
           tradeId:r.trade_id || null, symbol:r.symbol || '', symbolRoot:r.symbol_root || '', side:r.side || '', points:r.points == null ? null : Number(r.points), pnl:r.pnl == null ? null : Number(r.pnl), rr:r.rr == null ? null : Number(r.rr),
-          place:r.place == null ? null : Number(r.place), board:r.board || '', day:r.ref_day || null, rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points', tradeCount:Number(r.tcnt) || 1 })) }; },
+          place:r.place == null ? null : Number(r.place), board:r.board || '', day:r.ref_day || null, rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points', tradeCount:Number(r.tcnt) || 1, boardCount:Number(r.bcnt) || 1 })) }; },
       // everybody inside one grouped card: kind + tradeId (trade likes) or kind + day (profile likes, follows)
       async notificationPeople({ kind, tradeId, day } = {}){ const { data, error } = await sb.rpc('notification_people', { p_kind:kind, p_trade:tradeId || null, p_day:day || null });
         return { error:err(error), people:(data || []).map(r => ({ id:r.actor_id, username:r.username || '', nickname:r.nickname || '', avatarSeed:r.avatar_seed || null, at:r.created_at, iFollow:!!r.i_follow })) }; },
@@ -4507,6 +4547,9 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       async notificationTrades({ kind, userId, day } = {}){ const { data, error } = await sb.rpc('notification_trades', { p_kind:kind, p_user:userId || null, p_day:day });
         return { error:err(error), trades:(data || []).map(r => ({ id:r.trade_id, symbol:r.symbol || '', symbolRoot:r.symbol_root || '', side:r.side || '', points:r.points == null ? null : Number(r.points), pnl:r.pnl == null ? null : Number(r.pnl), rr:r.rr == null ? null : Number(r.rr), at:r.created_at,
           place:r.place == null ? null : Number(r.place), board:r.board || '', rankBy:r.rank_by === 'pnl' || r.rank_by === 'rr' ? r.rank_by : 'points', likes:r.likes == null ? 0 : Number(r.likes) })) }; },
+      // my trade's three rankings for the panel inside a board card (SQL section 58): place = Top 25 place or null
+      async notificationBoards(tradeId){ const { data, error } = await sb.rpc('notification_boards', { p_trade:tradeId });
+        return { error:err(error), boards:(data || []).map(r => ({ rankBy:r.rk === 'pnl' || r.rk === 'rr' ? r.rk : 'points', place:r.place == null ? null : Number(r.place), board:r.board === 'worst' ? 'worst' : 'best' })) }; },
       async notificationsUnread(){ const { data, error } = await sb.rpc('notifications_unread'); return { error:err(error), count:Number(data) || 0 }; },
       async markNotificationsSeen(){ const { error } = await sb.rpc('mark_notifications_seen'); return { error:err(error) }; },
       async tradeDetail(id){ const { data, error } = await sb.rpc('trade_detail', { p_id:id }); const r = Array.isArray(data) ? data[0] : null;
@@ -4523,7 +4566,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       async keepAliveRunNow(){ const { data, error } = await sb.rpc('keepalive_run_now'); const r = Array.isArray(data) ? data[0] : null; return { error:err(error), users:r ? Number(r.users_used) || 0 : 0, trades:r ? Number(r.trades_made) || 0 : 0 }; },
       async generateMyTrades(trades){ const { data, error } = await sb.rpc('generate_my_trades', { p_trades:trades }); const r = Array.isArray(data) ? data[0] : null;
         return { error:err(error), added:r ? Number(r.added) || 0 : 0, skipped:r ? Number(r.skipped) || 0 : 0 }; },
-      async generateMyNotifications(users, mine){ const { data, error } = await sb.rpc('generate_my_notifications', { p_users:users, p_mine:mine }); const r = Array.isArray(data) ? data[0] : null;
+      async generateMyNotifications(users, mine, scenario){ const { data, error } = await sb.rpc('generate_my_notifications', { p_users:users, p_mine:mine, p_scenario:scenario || 'all' }); const r = Array.isArray(data) ? data[0] : null;
         return { error:err(error), result: r ? { users:Number(r.made_users) || 0, trades:Number(r.made_trades) || 0, tradeLikes:Number(r.made_trade_likes) || 0, profileLikes:Number(r.made_profile_likes) || 0, followers:Number(r.made_followers) || 0, following:Number(r.made_following) || 0 } : null }; },
       async deleteMyGeneratedTrades(){ const { data, error } = await sb.rpc('delete_my_generated_trades'); return { error:err(error), removed:Number(data) || 0 }; },
       async generateTestData(users){ const { data, error } = await sb.rpc('generate_test_data', { p_users:users }); const r = Array.isArray(data) ? data[0] : null;
@@ -5986,15 +6029,16 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     return homeRecentDays(5, GEN.latest).map(k => { const p = k.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); });
   }
   // One random futures trade: contracts and points, priced on the symbol's tick.
-  function genTrade(user, day, symOverride, force){   // force = { outcome:'win'|'loss', star:true } makes a trade of that kind (star = a huge move, always near #1 on its board)
+  function genTrade(user, day, symOverride, force){   // force = { outcome:'win'|'loss', star:true, flat:true } makes a trade of that kind (star = a huge move, always near #1 on its board; flat = exit at entry, no place anywhere)
     const sym = symOverride || (Math.random() < .7 ? genPick(user.syms) : genWeighted(GEN_SYMS)), pv = SYM_BY[sym].pv, rnd = genRnd;
-    const star = !!(force && force.star);
+    const star = !!(force && force.star), flat = !!(force && force.flat);   // flat = exit at the entry price: no points, so it never places on a board
     const side = Math.random() < .55 ? 'long' : 'short';
-    const u = Math.random(), outcome = force && force.outcome ? force.outcome : u < .06 ? 'be' : Math.random() < user.p ? 'win' : 'loss';
+    const u = Math.random(), outcome = flat ? 'be' : force && force.outcome ? force.outcome : u < .06 ? 'be' : Math.random() < user.p ? 'win' : 'loss';
     const R = outcome === 'win' ? .5 + 3.5 * Math.pow(Math.random(), 1.8) : outcome === 'loss' ? -(.85 + Math.random() * .15) : (Math.random() - .5) * .1;
     const tick = GEN_TICK[sym], size = GEN_MICRO[sym] ? genPick([1, 1, 2, 3, 5, 5, 10, 15, 20]) : genPick([1, 1, 2, 3]);
     const stop = Math.max(tick, rnd(GEN_SCALE[sym] * (10 + Math.random() * 25), tick));
     let move = rnd(stop * R, tick); if(outcome !== 'be' && move === 0) move = (R < 0 ? -tick : tick);
+    if(flat) move = 0;
     if(star && outcome !== 'be'){ const big = rnd(GEN_STAR[sym] * (1 + Math.random() * .5), tick); move = outcome === 'win' ? big : -big; }
     const entry = rnd(GEN_BASE[sym] * (1 + (Math.random() - .5) * .03), tick), exit = rnd(side === 'long' ? entry + move : entry - move, tick);
     const hold = { win:12, loss:6, be:18 }[outcome];
@@ -6087,7 +6131,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     if(!status || !status.isAdmin) return hide();
     card.hidden = false; if(adm) adm.hidden = false; genShowStatus(status); kaLoad();
   }
-  function genBusy(on, label, which){ GEN.busy = on; ['#gen-go', '#gen-clear', '#gen-my-go', '#gen-my-clear', '#gen-nt-go'].forEach(q => { $(q).disabled = on; }); $('#gen-go').textContent = on && !which ? label : 'Generate'; $('#gen-my-go').textContent = on && which === true ? label : 'Generate For Me'; $('#gen-nt-go').textContent = on && which === 'nt' ? label : 'Generate Notifications'; }   // which: true = My Own Trades, 'nt' = Notifications For Me
+  function genBusy(on, label, which){ GEN.busy = on; ['#gen-go', '#gen-clear', '#gen-my-go', '#gen-my-clear', '#gen-nt-go', '#gen-nt-type'].forEach(q => { $(q).disabled = on; }); $('#gen-go').textContent = on && !which ? label : 'Generate'; $('#gen-my-go').textContent = on && which === true ? label : 'Generate For Me'; $('#gen-nt-go').textContent = on && which === 'nt' ? label : 'Generate Notification'; }   // which: true = My Own Trades, 'nt' = Notifications For Me
   async function genRun(){
     if(GEN.busy) return;
     formError('gen-error', '');
@@ -6152,45 +6196,66 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
         refreshGenerator(); dataChanged();
       } });
   }
-  // ---- Notifications For Me (SQL: generate_my_notifications, section 27) ----
-  // The browser builds the cast, SQL makes the likes and follows. 14 fake traders:
-  //   10 'actors' (they like and follow ME), each with one normal trade;
-  //    4 'followed' (I follow THEM): three have "star" trades (huge moves that always place near #1 on their board = Top 3 cards) and the fourth one plain trade (= "new trade" card).
-  // Plus 6 trades on MY account: 2 winning stars, 2 losing stars (= "board place" cards, sure to be in the top 25) and 1 normal winner and 1 normal loser.
-  // Every star takes its own (day, symbol) slot, so two stars never compete for the same board in one run.
-  function genNotifPlan(){
+  // ---- Notifications For Me (SQL: generate_my_notifications, sections 27 + 59) ----
+  // The browser builds the cast for the type picked in the dropdown, SQL makes the likes and follows. Two roles of fake trader:
+  //   'actor'    likes / follows ME (each has one normal trade);
+  //   'followed' I follow THEM: a "star" trade (huge move, always near #1 on its board) gives a board-finish card, a FLAT trade (exit = entry, no place on any board) gives a
+  //              "logged a trade" card, because a trade that made a board lives in the board card instead. Two on the SAME day make the grouped "2 trades" / "2 boards" cards.
+  // My own trades: stars (sure to place on all three rankings). Every star takes its own (day, symbol) slot, so two stars never compete for the same board in one run.
+  const GEN_NT_LABEL = () => { const o = $('#gen-nt-type'); return o && o.selectedOptions[0] ? o.selectedOptions[0].textContent : 'Notification'; };
+  function genNotifPlan(sc){
     const days = genDays(), used = new Set(), slots = [];
     days.forEach(d => GEN_SYMS.forEach(s => slots.push({ day:d, sym:s[0] })));
     for(let i = slots.length - 1; i > 0; i--){ const j = genInt(0, i), t = slots[i]; slots[i] = slots[j]; slots[j] = t; }
-    const tr = (prof, outcome, star) => { if(star){ const s = slots.pop(); return genTrade(prof, s.day, s.sym, { outcome, star:true }); } return genTrade(prof, genPick(days), null, { outcome }); };
+    const star = (prof, outcome) => { const s = slots.pop(); return genTrade(prof, s.day, s.sym, { outcome, star:true }); };
+    const tr = (prof, outcome, isStar) => isStar ? star(prof, outcome) : genTrade(prof, genPick(days), null, { outcome });
     const person = (role, trades) => Object.assign(genIdentity(used), { role, trades:trades.sort((a, b) => a.opened_at.localeCompare(b.opened_at)) });
-    const users = [];
-    for(let i = 0; i < 10; i++) users.push(person('actor', [tr(genProfile(), null)]));
-    users.push(person('followed', [tr(genProfile(), 'win', true)]));
-    users.push(person('followed', [tr(genProfile(), 'loss', true)]));
-    { const pr = genProfile(), a = slots.pop(), k = slots.findIndex(x => x.day === a.day), b = k >= 0 ? slots.splice(k, 1)[0] : slots.pop();   // a win and a loss on the SAME day = one "made 2 boards" card
-      users.push(person('followed', [genTrade(pr, a.day, a.sym, { outcome:'win', star:true }), genTrade(pr, b.day, b.sym, { outcome:'loss', star:true })])); }
-    { const pr = genProfile(), d = genPick(days); users.push(person('followed', [genTrade(pr, d, null, { outcome:'win' }), genTrade(pr, d, null, { outcome:'loss' })])); }   // two plain trades on one day
-    const me = genProfile();
-    const mine = [tr(me, 'win', true), tr(me, 'win', true), tr(me, 'loss', true), tr(me, 'loss', true), tr(me, 'win'), tr(me, 'loss')];
-    return { users, mine };
+    const actors = n => Array.from({ length:n }, () => person('actor', [tr(genProfile(), null)]));
+    const flat = (pr, d, n) => Array.from({ length:n }, () => genTrade(pr, d, null, { flat:true }));   // n flat trades on one day
+    const starPair = pr => { const a = slots.pop(), k = slots.findIndex(x => x.day === a.day), b = k >= 0 ? slots.splice(k, 1)[0] : slots.pop();   // a win and a loss on the SAME day
+      return [genTrade(pr, a.day, a.sym, { outcome:'win', star:true }), genTrade(pr, b.day, b.sym, { outcome:'loss', star:true })]; };
+    const me = genProfile(), wins = n => Array.from({ length:n }, () => tr(me, 'win')), losses = n => Array.from({ length:n }, () => tr(me, 'loss'));
+    switch(sc){
+      case 'flame_one': return { users:actors(4), mine:wins(1) };
+      case 'flame_day': return { users:actors(3), mine:wins(3) };
+      case 'lock_one': return { users:actors(4), mine:losses(1) };
+      case 'lock_day': return { users:actors(3), mine:losses(3) };
+      case 'plike_one': return { users:actors(1), mine:[] };
+      case 'plike_many': return { users:actors(6), mine:[] };
+      case 'follow_one': return { users:actors(1), mine:[] };
+      case 'follow_many': return { users:actors(5), mine:[] };
+      case 'board_one': case 'board_all': return { users:actors(1), mine:[star(me, 'win')] };   // one fake trader is needed by the generator; SQL trims board_one to a single ranking
+      case 'ft_one': return { users:[person('followed', flat(genProfile(), genPick(days), 1))], mine:[] };
+      case 'ft_day': return { users:[person('followed', flat(genProfile(), genPick(days), 2))], mine:[] };
+      case 'fb_one': return { users:[person('followed', [star(genProfile(), 'win')])], mine:[] };
+      case 'fb_day': return { users:[person('followed', starPair(genProfile()))], mine:[] };
+    }
+    // 'all': 10 actors and 5 followed traders (1 board, 1 board, 2 boards, 2 logged trades, 1 logged trade) + 6 of my own trades: 4 stars (the 2nd best winner is trimmed to one board by SQL) and 2 normal
+    const users = actors(10);
+    users.push(person('followed', [star(genProfile(), 'win')]));
+    users.push(person('followed', [star(genProfile(), 'loss')]));
+    users.push(person('followed', starPair(genProfile())));
+    users.push(person('followed', flat(genProfile(), genPick(days), 2)));
+    users.push(person('followed', flat(genProfile(), genPick(days), 1)));
+    return { users, mine:[star(me, 'win'), star(me, 'win'), star(me, 'loss'), star(me, 'loss'), tr(me, 'win'), tr(me, 'loss')] };
   }
   async function genNotifRun(){
     if(GEN.busy) return;
     formError('gen-error', '');
+    const sc = $('#gen-nt-type').value || 'all', label = GEN_NT_LABEL();
     let res = null;
     try{
       genBusy(true, 'Creating\u2026', 'nt');
       const lt = await Backend.latestTradingDay();
       if(lt.error || !lt.day){ formError('gen-error', (lt.error ? lt.error.message : 'No trading day returned.') + ' Run the newest supabase-setup.sql.', "Can't generate"); genBusy(false); return; }
       GEN.latest = lt.day; await holLoad();   // so the test days skip market holidays
-      const plan = genNotifPlan();
-      const r = await Backend.generateMyNotifications(plan.users, plan.mine);
+      const plan = genNotifPlan(sc);
+      const r = await Backend.generateMyNotifications(plan.users, plan.mine, sc);
       if(r.error) formError('gen-error', r.error.message + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't generate"); else res = r.result;
     }catch(e){ console.error('Generator failed', e); formError('gen-error', 'Something went wrong while generating. Try again.', "Can't generate"); }
     genBusy(false);
     if(res){
-      showToast('Notifications created', res.users + ' fake traders added. You now have ' + res.tradeLikes + ' trade likes, ' + res.profileLikes + ' profile likes and ' + res.followers + ' new followers, and you follow ' + res.following + ' traders. Open Notifications to try every card.', 'success');
+      showToast('Notification created', sc === 'all' ? 'Every type was added. Open Notifications to see them.' : label + ' was added. Open Notifications to see it.', 'success');
       refreshGenerator(); dataChanged();
     }
   }
@@ -8935,7 +9000,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       case 'follow': return who + ' started following you';
       case 'followed_trade': return lst ? one + ' logged ' + n.tradeCount + ' trades' : who + ' logged a new ' + tr;   // sections 56 + 57: one card per trader per day
       case 'followed_board': return lst ? one + ' made ' + n.tradeCount + ' boards for ' + dayTx : who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + dayTx;
-      case 'board_place': return who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + dayTx;
+      case 'board_place': return n.boardCount > 1 ? (rich ? '<b>Your</b> ' : 'Your ') + tr + ' placed on ' + n.boardCount + ' boards' : who + ' placed #' + n.place + ' on the ' + e(ntBoardName(n)) + ' board for ' + dayTx;
       default: return who + ' logged a new ' + tr;
     }
   }
@@ -8980,7 +9045,7 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
   }
   function ntCardHtml(n, i, delay){
     const k = NT_KINDS[n.kind] || NT_KINDS.follow, ago = ntAgo(n.at), grp = n.count > 1, fb = n.kind === 'follow' && !grp && n.actorId;
-    const what = n.tradeCount > 1 ? 'See the trades' : n.tradeId ? (grp ? 'Open trade and see who' : 'Open trade details') : grp ? 'See everyone' : 'Open profile';
+    const what = n.kind === 'board_place' && n.boardCount > 1 ? 'See all your finishes' : n.tradeCount > 1 ? 'See the trades' : n.tradeId ? (grp ? 'Open trade and see who' : 'Open trade details') : grp ? 'See everyone' : 'Open profile';
     return '<div class="nt-row rise ' + ntCls(n, k) + (n.isNew ? ' new' : '') + (fb ? ' has-act' : '') + '" style="--i:' + delay + '">' +
       '<button type="button" class="nt-card" data-i="' + i + '" aria-label="' + esc(ntSentence(n, false) + ', ' + ago + (n.isNew ? ', new' : '') + '. ' + what) + '">' +
         ntAvatar(n, k) +
@@ -9082,9 +9147,17 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
       const tail = t.place ? '#' + t.place + ' ' + esc(ntBoardName({ symbolRoot:t.symbolRoot, symbol:t.symbol, board:t.board, rankBy:t.rankBy })) : mine ? fmtCount(t.likes) + (n.kind === 'worst_like' ? (t.likes === 1 ? ' lock-in' : ' lock-ins') : (t.likes === 1 ? ' flame' : ' flames')) : esc(ntAgo(t.at));
       return '<div class="nt-prow rise' + (isNew ? ' new' : '') + '" style="--i:' + Math.min(i, 12) + '">' +
         '<button type="button" class="nt-pbtn" data-t="' + esc(t.id) + '" data-i="' + i + '" aria-label="' + esc('Open ' + nm + ' trade') + '">' + (mine ? '<span class="nt-ps">' + esc(t.symbolRoot || (t.symbol || '').toUpperCase()) + '</span>' : ntImg(n)) +
-          '<span class="t"><b>' + esc(nm) + '</b><small>' + pts + ' ' + mny + ' \u00B7 ' + tail + '</small></span>' + (isNew ? '<span class="nt-new">New</span>' : '') + '</button></div>';
+          '<span class="t"><b>' + esc(nm) + '</b>' + (t.place ? '<small class="nt-fp">' + tail + '</small><small>' + pts + ' ' + mny + '</small>' : '<small>' + pts + ' ' + mny + ' \u00B7 ' + tail + '</small>') + '</span>' + (isNew ? '<span class="nt-new">New</span>' : '') + '<span class="nt-pgo" aria-hidden="true">' + NT_CHEV + '</span></button></div>';
     }).join('');
     return '<div class="nt-ph"><b>' + esc(NT_TRADES_TITLE[n.kind] || 'Trades') + '</b><span>' + fmtCount(trades.length) + '</span></div><div class="nt-plist">' + rows + '</div>';
+  }
+  // My trade's finish on each ranking (section 58), drawn above the trade inside a board card. A row with a place is highlighted; the rest say Outside the Top 25.
+  function ntBoardsHtml(n, boards){
+    if(!boards || !boards.length) return '';
+    const hit = boards.filter(b => b.place).length, root = n.symbolRoot || (n.symbol || '').toUpperCase();
+    const rows = boards.map((b, i) => '<div class="nt-prow rise' + (b.place ? ' hit' : '') + '" style="--i:' + i + '"><div class="nt-pbtn nt-pstat"><span class="nt-ps">' + (b.place ? '#' + b.place : '\u2013') + '</span>' +
+      '<span class="t"><b>' + esc(root + ' ' + (b.board === 'worst' ? 'Worst' : 'Best') + ' ' + (b.rankBy === 'pnl' ? 'P&L' : b.rankBy === 'rr' ? 'R:R' : 'Points')) + '</b><small>' + (b.place ? 'Top 25 \u00B7 ' + esc(n.day ? homeLabel(n.day) : '') : 'Outside the Top 25') + '</small></span></div></div>').join('');
+    return '<div class="nt-fin"><div class="nt-ph"><b>Your finishes</b><span>' + hit + ' of ' + boards.length + '</span></div><div class="nt-plist">' + rows + '</div></div>';
   }
   let ntTradeRows = [];
   async function ntLoadTrades(n, seq){
@@ -9113,13 +9186,15 @@ html[data-theme="dark"] .nb-worst{ --nc:var(--loss); }
     $('#nt-dact').hidden = n.kind === 'board_place' || (dayCard ? likeKind : grp);                                        // View profile: one person only (not for a group, not for my own place)
     $('#nt-dprofile').setAttribute('aria-label', 'View ' + homeName(n) + '\u2019s profile');
     ntSetView('detail');
+    const bpro = n.kind === 'board_place' && n.tradeId ? Backend.notificationBoards(n.tradeId) : null;   // fetched together with the trade (2 calls, same moment)
     if(dayCard) ntLoadTrades(n, seq); else if(grp) ntLoadPeople(n, seq);
     if(!trade) return;
     const res = await Backend.tradeDetail(n.tradeId); if(seq !== NT.dseq) return;
     if(res.error){ $('#nt-dbody').innerHTML = ''; formError('nt-derror', res.error.message + ' (If the function does not exist, run the newest supabase-setup.sql.)', "Can't load this trade"); return; }
     if(!res.trade){ $('#nt-dbody').innerHTML = ntEmptyHtml('This trade is gone', 'The trader deleted it, so there is nothing left to show.'); return; }
     const tr = res.trade; TD_FLAT.trade = tr;
-    $('#nt-dbody').innerHTML = tdBodyHtml(tr, ntPlace(tr, n.kind === 'board_place' || n.kind === 'followed_board' ? n.rankBy : 'points'), tr.isMe) + (grp ? '' : ntLikesHtml(tr));       // my own trade has no banner (it is me)
+    let pre = ''; if(bpro){ const bb = await bpro; if(seq !== NT.dseq) return; pre = bb.error ? '' : ntBoardsHtml(n, bb.boards); }
+    $('#nt-dbody').innerHTML = pre + tdBodyHtml(tr, ntPlace(tr, n.kind === 'board_place' || n.kind === 'followed_board' ? n.rankBy : 'points'), tr.isMe) + (grp ? '' : ntLikesHtml(tr));       // my own trade has no banner (it is me)
     if(!grp && !tr.isMe && n.actorId && n.actorId === tr.userId) $('#nt-dact').hidden = true;                  // the banner already opens that profile
   }
   function ntOpen(n){ if(n.tradeId || n.count > 1 || n.tradeCount > 1) ntShowDetail(n); else openProfile(n.username); }
